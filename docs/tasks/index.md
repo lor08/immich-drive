@@ -32,15 +32,8 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0006-architecture-decisions.md` | `P0-11`    | Storage, index, and client decisions   | Done       | #17   | #18          | Adds ADR 0004-0007 and re-sequences Phase 1; documentation only.                           |
 | `0007-integration-seam-spike.md` | `P0-12`    | Integration seam measurement spike     | Done       | #19   | —            | Six upstream files measured; ADR 0008 keeps the domain in-process. Spike branch unmerged.  |
 | `0008-storage-root-config.md`    | `P1-03`    | Storage-root configuration             | Done       | #22   | #23          | Opt-in via `IMMICH_DRIVE_ROOT`; overlap with Immich media paths fails startup.             |
+| `0009-migration-architecture.md` | `P0-04`    | Migration and rollback architecture    | Done       | #9    | —            | ADR 0009: in-place image swap, opt-in domain. Implementation deferred to `P1-04`.          |
 | `0010-release-architecture.md`   | `P0-05`    | Release and publication architecture   | Done       | #11   | —            | ADR 0010: GHCR only, renamed image, no fork-built ML. Workflow work split out as `P0-13`.  |
-
-## Promoted architecture work awaiting task files
-
-These Issues are valid architectural work, but implementation must not begin until a versioned task file is added and this index is updated.
-
-| Backlog ID       | Title                  | Status | Issue | Required next record                                                     |
-| ---------------- | ---------------------- | ------ | ----- | ------------------------------------------------------------------------ |
-| `P0-04` / `X-02` | Migration architecture | Ready  | #9    | Add the next chronological task file before architecture implementation. |
 
 ## Promotable work with accepted decisions and no Issue yet
 
@@ -62,5 +55,5 @@ These items are defined by an accepted ADR and may be promoted without further d
 
 1. Promote `P1-16` volumes and `P1-17` advisory locking, then the filesystem-only browse and write slices `P1-08` through `P1-10`.
 2. Promote `P2-01` and `P2-02` so the first slice is usable in the web client.
-3. Deliver `P1-04` schema together with `P1-06` reconciliation, following the migration rules already fixed by `P0-04`.
+3. Deliver `P1-04` schema together with `P1-06` reconciliation. ADR 0009 already fixes the migration and rollback rules, so this is where the documented downgrade procedure and the upgrade fixture test become due.
 4. Run `P0-13` before publishing anything, so no build can push under an upstream name.
