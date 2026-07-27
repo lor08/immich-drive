@@ -1,5 +1,12 @@
 # Task 0001: Scaffold an isolated server-side file domain
 
+## Tracking
+
+- GitHub Issue: [#2 — Scaffold isolated server-side file domain](https://github.com/lor08/immich-drive/issues/2)
+- Architecture bootstrap: [PR #1](https://github.com/lor08/immich-drive/pull/1)
+
+This versioned file is the source of truth for scope, constraints, and acceptance criteria. GitHub Issue #2 is the live execution log for status, discussion, implementation decisions, pull requests, and validation results. Any material scope change must be reflected in both places.
+
 ## Status
 
 Ready after the architecture bootstrap PR is merged.
