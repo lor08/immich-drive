@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { FileEntryType } from 'src/extensions/files/file-entry';
 import {
   LocalStorageAdapter,
@@ -16,9 +17,7 @@ const readAll = async (content: AsyncIterable<Uint8Array>): Promise<Buffer> => {
   return Buffer.concat(chunks);
 };
 
-const testContent = async function* (): AsyncGenerator<Uint8Array> {
-  yield Uint8Array.from([1]);
-};
+const testContent = Readable.from([Uint8Array.from([1])]);
 
 describe(LocalStorageAdapter.name, () => {
   let workspace: string;
@@ -235,7 +234,7 @@ describe(LocalStorageAdapter.name, () => {
   it('fails mutation operations explicitly without changing the filesystem', async () => {
     const before = await fs.readdir(root);
 
-    await expect(adapter.write('/new.txt', testContent())).rejects.toMatchObject({
+    await expect(adapter.write('/new.txt', testContent)).rejects.toMatchObject({
       code: LocalStorageErrorCode.UnsupportedOperation,
     });
     await expect(adapter.move('/a.txt', '/b.txt')).rejects.toMatchObject({
