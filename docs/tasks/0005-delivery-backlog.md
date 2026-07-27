@@ -8,7 +8,7 @@
 
 ## Status
 
-Active in draft PR #14.
+In review in draft PR #14. The inherited formatter normalized the planning documents; fresh inherited checks run from this user-authored follow-up commit.
 
 ## Goal
 
