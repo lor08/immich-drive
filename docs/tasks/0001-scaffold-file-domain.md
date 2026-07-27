@@ -4,12 +4,13 @@
 
 - GitHub Issue: [#2 — Scaffold isolated server-side file domain](https://github.com/lor08/immich-drive/issues/2)
 - Architecture bootstrap: [PR #1](https://github.com/lor08/immich-drive/pull/1)
+- Implementation: [PR #3](https://github.com/lor08/immich-drive/pull/3)
 
 This versioned file is the source of truth for scope, constraints, and acceptance criteria. GitHub Issue #2 is the live execution log for status, discussion, implementation decisions, pull requests, and validation results. Any material scope change must be reflected in both places.
 
 ## Status
 
-Ready after the architecture bootstrap PR is merged.
+In review in draft PR #3. The implementation branch was rebuilt on the current `main`, and the inherited `fix:formatting` workflow normalized the documentation and TypeScript files. Fresh inherited checks are running from a user-authored follow-up commit.
 
 ## Goal
 
@@ -48,15 +49,15 @@ Register the new module only if registration is necessary for the project to com
 
 ## Acceptance criteria
 
-- [ ] New code is isolated from Immich asset entities, repositories, services, jobs, and album permissions.
-- [ ] No existing migration is changed and no new migration is added.
-- [ ] No API route or OpenAPI schema is added.
-- [ ] No physical filesystem operation is implemented.
-- [ ] No production dependency is added unless clearly justified.
-- [ ] The file-domain service depends on an abstract storage contract, not `node:fs`.
-- [ ] Unit tests verify the basic service boundary or contract behavior without touching the real filesystem.
-- [ ] Relevant server formatting, linting, type checking, and tests pass.
-- [ ] The pull request lists every modified upstream-owned file and explains why the edit is necessary.
+- [x] New code is isolated from Immich asset entities, repositories, services, jobs, and album permissions.
+- [x] No existing migration is changed and no new migration is added.
+- [x] No API route or OpenAPI schema is added.
+- [x] No physical filesystem operation is implemented.
+- [x] No production dependency is added.
+- [x] The file-domain service depends on an abstract storage contract, not `node:fs`.
+- [x] Unit tests verify the basic service boundary or contract behavior without touching the real filesystem.
+- [ ] Relevant inherited server formatting, linting, type checking, and tests pass.
+- [x] The pull request lists every modified upstream-owned file and explains why the edit is necessary.
 
 ## Non-goals
 
