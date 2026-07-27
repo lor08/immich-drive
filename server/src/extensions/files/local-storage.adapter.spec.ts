@@ -164,11 +164,11 @@ describe(LocalStorageAdapter.name, () => {
       '/folder/./file.txt',
       '/folder//file.txt',
       '/folder/',
-      'C:\\secret.txt',
+      String.raw`C:\secret.txt`,
       '/C:/secret.txt',
       '//server/share',
-      '\\\\server\\share',
-      '/folder\\file.txt',
+      String.raw`\\server\share`,
+      String.raw`/folder\file.txt`,
       '/bad\0path',
     ];
 
