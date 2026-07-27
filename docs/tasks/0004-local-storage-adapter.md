@@ -4,12 +4,13 @@
 
 - GitHub Issue: [#8 — Implement secure read-only LocalStorageAdapter](https://github.com/lor08/immich-drive/issues/8)
 - Foundation: [PR #3](https://github.com/lor08/immich-drive/pull/3)
+- Implementation: [PR #10](https://github.com/lor08/immich-drive/pull/10)
 
 This versioned file is the source of truth for stable scope, constraints, and acceptance criteria. GitHub Issue #8 is the live execution log for status, discussion, implementation decisions, pull requests, and validation results. Any material scope change must be reflected in both places.
 
 ## Status
 
-In implementation.
+In review in draft PR #10.
 
 ## Goal
 
