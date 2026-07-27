@@ -27,6 +27,7 @@ This document is the durable product backlog for Immich Drive. It translates the
 - Keep ordinary file bytes and names readable on disk.
 - Add the smallest reversible integration seam in each pull request.
 - Treat migration, release engineering, security, backups, observability, and repair tooling as product requirements rather than late cleanup.
+- Defer irreversible commitments — database schema, published artifacts, signed clients, frozen API contracts — until the capability that needs them is being built.
 - Do not call a phase complete until its exit gate is demonstrated by automated tests and a documented operator workflow.
 
 ## Phase 0 — Foundation and operability
@@ -45,6 +46,8 @@ Goal: establish architectural, contributor, migration, release, and upstream-syn
 - **P0-08 — Reproducible development and demo environment — Backlog.** Provide a fork-owned Compose example, seeded test data, local storage root, mail/testing defaults, and documented reset procedure.
 - **P0-09 — Security threat model — Backlog.** Model filesystem, API, signed URL, sharing, external mount, export, supply-chain, and administrative threats before write APIs are production-ready.
 - **P0-10 — Licensing, attribution, and branding review — Backlog.** Record fork naming, notices, distribution obligations, third-party assets, and application identifiers before public releases.
+- **P0-11 — Storage, index, and client architecture decisions — Active.** Record the volume path model, the deferred Drive-owned schema, the web-first client strategy, and the reconciliation and mount-health rules as ADRs, and align the plan with them. Tracked by Issue #17.
+- **P0-12 — Integration seam measurement spike — Ready.** Wire the file module, one route, and one navigation entry on a throwaway branch purely to count the upstream-owned files a working slice touches. The result decides whether the file domain stays inside the Immich server process or moves to a separate service, and the branch is discarded afterwards.
 
 ### Exit gate
 
@@ -57,23 +60,27 @@ Goal: establish architectural, contributor, migration, release, and upstream-syn
 
 Goal: provide a secure, user-owned file domain with transparent local storage, metadata, APIs, and recovery behavior.
 
+Sequencing note: browse and write capabilities are delivered on the filesystem alone. `P1-04` and `P1-05` follow `P1-08`, `P1-09`, and `P1-10` rather than preceding them, because no Drive-owned table exists until the index; see [ADR 0005](../adr/0005-defer-drive-database.md). Stable identifiers, the index, and reconciliation land together.
+
 ### Tasks
 
 - **P1-01 — Isolated file-domain scaffold — Done.** `FileEntry`, `StorageAdapter`, `FileDomainService`, and module boundary. Delivered by PR #3.
 - **P1-02 — Secure read-only local adapter — Active.** Descriptor-safe `stat`, `list`, and ranged `open` with traversal, symlink, root replacement, and race protection. Tracked by Issue #8 and PR #10.
 - **P1-03 — Storage-root configuration and validation — Backlog.** Add configuration, startup validation, non-overlap checks against Immich upload/library paths, mount readiness, permissions checks, and operator-facing errors.
-- **P1-04 — Drive-owned database schema — Backlog.** Define storage roots, file identities, hierarchy, ownership, lifecycle state, checksums, reconciliation state, and indexes using fork-owned migrations.
-- **P1-05 — File metadata repository — Backlog.** Implement persistence contracts without coupling storage adapters to PostgreSQL or upstream asset repositories.
-- **P1-06 — Initial scan and reconciliation engine — Backlog.** Index existing files, detect additions/removals/renames, recover from interruptions, and report conflicts without deleting unknown data.
+- **P1-04 — Drive-owned database schema — Backlog, sequenced after P1-08 through P1-10.** Define volumes, file identities, hierarchy, ownership, lifecycle state, checksums, reconciliation state, and indexes using fork-owned `drive_`-prefixed migrations. Includes migrating trash manifests written by the filesystem-only stages.
+- **P1-05 — File metadata repository — Backlog, sequenced after P1-04.** Implement persistence contracts without coupling storage adapters to PostgreSQL or upstream asset repositories.
+- **P1-06 — Initial scan and reconciliation engine — Backlog, delivered together with P1-04.** Index existing files, detect additions/removals/renames, recover from interruptions, and report conflicts without deleting unknown data. Volume health gates every removal; see [ADR 0007](../adr/0007-reconciliation-and-mount-health.md).
 - **P1-07 — Ownership and authorization model — Backlog.** Define owner, administrator, service, and future share permissions; centralize checks for every file operation.
 - **P1-08 — Folder query and creation API — Backlog.** List roots and folders, create directories atomically, enforce naming rules, and generate OpenAPI clients.
 - **P1-09 — Atomic upload pipeline — Backlog.** Stream uploads to temporary files, enforce limits, fsync where appropriate, finalize atomically, clean failures, and reconcile metadata.
 - **P1-10 — Authenticated download API — Backlog.** Stream files without loading them into memory; implement safe content disposition and authorization.
-- **P1-11 — Rename, move, and copy semantics — Backlog.** Define collision handling, cross-device behavior, metadata updates, cancellation, and recovery.
-- **P1-12 — Trash, restore, and permanent deletion — Backlog.** Define soft-delete layout, retention, restore collisions, administrator purge, and reconciliation.
+- **P1-11 — Rename, move, and copy semantics — Backlog.** Same-volume moves must be `rename(2)`. Cross-volume moves are detected through filesystem identity and rejected explicitly until a resumable transfer job exists. Define collision handling, metadata updates, cancellation, and recovery.
+- **P1-12 — Trash, restore, and permanent deletion — Backlog.** Soft delete moves content into the trash directory of the same volume with a sidecar manifest, so deletion never becomes a cross-filesystem copy. Define retention, restore collisions, administrator purge, and reconciliation.
 - **P1-13 — Checksums and integrity state — Backlog.** Add incremental hashing, corruption detection, duplicate hints, and repair status without blocking ordinary file access.
 - **P1-14 — Audit and operational events — Backlog.** Record security-relevant mutations, reconciliation failures, storage health, and administrative actions.
 - **P1-15 — Core integration and security tests — Backlog.** Prove cross-user isolation, path safety, interrupted-write recovery, database/filesystem consistency, and normal filesystem readability.
+- **P1-16 — Volume and path namespace model — Ready.** Implement the volume abstraction from [ADR 0004](../adr/0004-volume-path-model.md): a private volume per user, one configuration-defined shared space, service directories outside the browsable tree, per-volume root identity, and an API addressed by volume plus relative path. The registry is configuration-driven until `P1-04` moves it into the schema.
+- **P1-17 — Concurrency primitives — Backlog.** Provide PostgreSQL advisory locking keyed by normalized volume and path, with documented behavior for lost connections and multi-replica deployments, so mutations are safe before any Drive-owned table exists.
 
 ### Exit gate
 
@@ -176,6 +183,8 @@ Goal: expose selected real folders to Jellyfin, Plex, and similar consumers thro
 
 Goal: provide file access and transfer workflows in the existing Flutter application and supported platforms.
 
+Sequencing note: this entire phase is deferred until the file API has stabilized after the index. The web application is the only client until then, which is what makes the API changes in Phase 1 free; see [ADR 0006](../adr/0006-web-first-clients.md). The phase begins by freezing the contract and generating the Dart client.
+
 ### Tasks
 
 - **P6-01 — Generated API and shared client contracts — Backlog.** Keep web and Flutter clients aligned with OpenAPI and signed URL rules.
@@ -232,7 +241,7 @@ These tasks may be promoted whenever their dependency becomes relevant.
 - **X-06 — Security assurance.** Threat model, dependency scanning, fuzzing for paths/ranges, authorization tests, secret handling, and disclosure process.
 - **X-07 — Performance and capacity testing.** Large libraries, deep trees, millions of metadata rows, concurrent transfers, and low-memory deployments.
 - **X-08 — Documentation and operator experience.** Installation, upgrade, storage layout, troubleshooting, release notes, and recovery runbooks.
-- **X-09 — Integrity, repair, and reconciliation.** Explain drift, dry-run repairs, checkpoints, idempotency, and non-destructive defaults.
+- **X-09 — Integrity, repair, and reconciliation.** Explain drift, dry-run repairs, checkpoints, idempotency, and non-destructive defaults, as decided in [ADR 0007](../adr/0007-reconciliation-and-mount-health.md).
 - **X-10 — Compatibility matrix.** Upstream versions, PostgreSQL versions, architectures, filesystems, browsers, mobile OS versions, and external players.
 - **X-11 — Privacy and telemetry policy.** Default data collection, diagnostics consent, redaction, crash reporting, and external service use.
 - **X-12 — Dependency, licensing, and branding governance.** Review new dependencies, notices, application identifiers, and distribution assets.

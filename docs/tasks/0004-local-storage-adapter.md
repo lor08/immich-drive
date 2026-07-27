@@ -10,7 +10,7 @@ This versioned file is the source of truth for stable scope, constraints, and ac
 
 ## Status
 
-In review in PR #10. The adapter uses descriptor-based traversal and revalidation to prevent root replacement, intermediate symlink substitution, and time-of-check/time-of-use path escapes.
+Done. Merged in PR #10 with all applicable inherited checks green. The adapter uses descriptor-based traversal and revalidation to prevent root replacement, intermediate symlink substitution, and time-of-check/time-of-use path escapes.
 
 Two `unicorn` lint errors reported by the inherited `Test & Lint Server` job were fixed: an impossible `stats.size < 0` comparison was removed, and the range-length guard now reads through a local binding so the rule does not force `=== 0` and lose negative-length rejection. A descriptor-leak test was added because the descriptor-closing acceptance criterion had no coverage.
 
@@ -153,7 +153,7 @@ Skip symlink-specific assertions only on a platform where creating symlinks is g
 - [x] No host absolute path is returned through the adapter contract.
 - [x] All descriptors are closed on success, failure, and generator completion.
 - [x] No database entity, migration, API route, OpenAPI schema, or runtime module registration is added.
-- [ ] Relevant inherited Immich formatting, linting, type checking, unit tests, and security checks pass.
+- [x] Relevant inherited Immich formatting, linting, type checking, unit tests, and security checks pass.
 
 ## Non-goals
 

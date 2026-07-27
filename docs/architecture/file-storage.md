@@ -11,6 +11,8 @@
 
 A file-domain entry has a stable application ID independent of its current name or path.
 
+Stable IDs and the tables that hold them arrive with the index. Until then, content is addressed by volume and relative path, and no Drive-owned table exists; see [ADR 0005](../adr/0005-defer-drive-database.md).
+
 Suggested concepts:
 
 ```text
@@ -38,36 +40,49 @@ Additional tables should be introduced only when their behavior is implemented, 
 
 Domain services depend on an interface rather than Node filesystem calls.
 
+The implemented contract lives in `server/src/extensions/files/storage.adapter.ts`:
+
 ```ts
-interface StorageAdapter {
-  stat(key: string): Promise<StorageEntry>;
-  list(key: string): Promise<StorageEntry[]>;
-  createDirectory(key: string): Promise<void>;
-  open(key: string, range?: ByteRange): Promise<Readable>;
-  write(key: string, source: Readable, options?: WriteOptions): Promise<WriteResult>;
-  move(sourceKey: string, targetKey: string): Promise<void>;
-  copy(sourceKey: string, targetKey: string): Promise<void>;
-  delete(key: string): Promise<void>;
+abstract class StorageAdapter {
+  abstract stat(path: string): Promise<FileEntry | null>;
+  abstract list(path: string): Promise<readonly FileEntry[]>;
+  abstract open(path: string, range?: StorageRange): Promise<AsyncIterable<Uint8Array>>;
+  abstract write(path: string, content: AsyncIterable<Uint8Array>, options?: StorageWriteOptions): Promise<FileEntry>;
+  abstract move(sourcePath: string, targetPath: string): Promise<void>;
+  abstract copy(sourcePath: string, targetPath: string): Promise<FileEntry>;
+  abstract delete(path: string, options?: StorageDeleteOptions): Promise<void>;
 }
 ```
 
-The initial adapter is `LocalStorageAdapter`. External directories may use the same adapter implementation with a distinct configured root and access mode.
+Notes on the current shape:
+
+- Paths are virtual and relative to one volume root, never host paths.
+- `stat` returns `null` for a missing entry rather than throwing.
+- Content is carried as `AsyncIterable<Uint8Array>` so an adapter can stream without depending on Node stream types.
+- Directory creation is not part of the contract yet; it is added with the folder-creation capability.
+
+The initial adapter is `LocalStorageAdapter`, and it is read-only: `write`, `move`, `copy`, and `delete` reject explicitly. Each volume, including a registered external directory, is served by an adapter instance with its own configured root and access mode; see [ADR 0004](../adr/0004-volume-path-model.md).
 
 ## Managed storage layout
 
-The server owns a configured root and derives every path from trusted IDs and validated names.
+Content lives in volumes. Each volume is an independently rooted tree with a kind and an access mode, and every path the server derives comes from a trusted volume root, trusted identifiers, and validated names.
 
 ```text
-<managed-root>/users/<user-id>/files/
+<managed-root>/users/<user-id>/files/      browsable private content
+<managed-root>/users/<user-id>/.trash/     soft-deleted content and manifests
+<managed-root>/users/<user-id>/.tmp/       upload staging
+<managed-root>/shared/<space>/files/       shared content, same service directories
 ```
 
 Requirements:
 
-- No client-controlled absolute paths.
+- No client-controlled absolute paths, and no host path in any response.
 - Normalize and validate every path segment.
 - Reject `.` and `..`, null bytes, separators embedded in names, and platform-reserved names where relevant.
-- Resolve symlinks and ensure the final target remains inside the configured root.
+- Reject symbolic links; the final target and every intermediate component must remain inside the volume root, verified through open descriptors rather than by string comparison.
 - Use collision-safe behavior and never silently overwrite unless the operation explicitly requests replacement.
+- Keep service directories outside the browsable tree so they never appear in listings, exports, or backups of user content.
+- Validate at startup that no managed root overlaps an Immich upload or library path, in either direction.
 
 ## Database and filesystem consistency
 
@@ -83,20 +98,28 @@ For the MVP:
 
 A periodic reconciliation job compares the index with physical storage. Filesystem watchers may reduce latency but cannot be the only consistency mechanism.
 
+Reconciliation ships in the same phase as the index, defaults to non-destructive behavior, and treats an unreadable, replaced, or unexpectedly empty volume root as a health failure rather than as evidence of deletion; see [ADR 0007](../adr/0007-reconciliation-and-mount-health.md).
+
 ## Deletion and trash
 
 Normal user deletion is soft deletion:
 
-- move the physical entry into a user-scoped trash area when practical;
-- mark the database entry deleted;
-- preserve enough metadata to restore it;
+- move the physical entry into the trash directory **of the same volume**, so deletion stays a rename rather than a copy of the whole file;
+- record the original path and deletion time in a manifest stored beside the trashed content, and in the index once it exists;
+- preserve enough metadata to restore it, including collision behavior when the original path is occupied again;
 - purge only through an explicit retention job.
+
+A trash area shared between volumes is not acceptable: it turns deleting a large file into a cross-filesystem copy and can fail halfway.
 
 External read-only directories cannot be deleted through Immich Drive. External read-write behavior must be documented clearly because moving to an internal trash directory may cross filesystems.
 
 ## Concurrency
 
-The service must define behavior for concurrent upload, rename, move, and delete operations. Initial protection may use database transactions and application-level locks keyed by storage and entry IDs. Filesystem state must be revalidated immediately before destructive operations.
+The service must define behavior for concurrent upload, rename, move, and delete operations. Filesystem state must be revalidated immediately before destructive operations.
+
+Mutual exclusion uses PostgreSQL advisory locks keyed by a hash of the normalized volume and path. In-process locks are not sufficient, because Immich can run several server replicas against one database. Advisory locks also keep the early filesystem-only stages free of schema; see [ADR 0005](../adr/0005-defer-drive-database.md).
+
+Moves inside a volume must be `rename(2)`. A move between volumes is detected by comparing filesystem identity and is rejected explicitly until a resumable transfer job exists, because it is a copy whose duration scales with file size.
 
 ## Future backends
 
