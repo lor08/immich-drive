@@ -3,13 +3,13 @@
 ## Tracking
 
 - GitHub Issue: [#6 — Align agent workflow with inherited Immich automation](https://github.com/lor08/immich-drive/issues/6)
-- Implementation PR: pending
+- Implementation PR: [#7 — chore(ci): align agents with inherited workflows](https://github.com/lor08/immich-drive/pull/7)
 
 This versioned file is the source of truth for scope, constraints, and acceptance criteria. GitHub Issue #6 is the live execution log.
 
 ## Status
 
-Ready for implementation.
+In review in draft PR #7.
 
 ## Goal
 
@@ -35,15 +35,15 @@ Make automated agents follow the inherited Immich pull-request and GitHub Action
 
 ## Acceptance criteria
 
-- [ ] Agents must use the exact PR template headings and complete all applicable fields.
-- [ ] Agents must disclose LLM usage honestly in every PR.
-- [ ] Agents must use Conventional Commit PR titles.
-- [ ] Agents must apply exactly one `changelog:*` label before considering a PR ready.
-- [ ] New or edited Actions must pin every external action to a full commit SHA.
-- [ ] Checkout credentials must not persist unless write-back is explicitly required.
-- [ ] Permissions must follow least privilege.
-- [ ] The redundant `Immich Drive CI` workflow is removed.
-- [ ] Inherited workflows remain untouched.
+- [x] Agents must use the exact PR template headings and complete all applicable fields.
+- [x] Agents must disclose LLM usage honestly in every PR.
+- [x] Agents must use Conventional Commit PR titles.
+- [x] Agents must apply exactly one `changelog:*` label before considering a PR ready.
+- [x] New or edited Actions must pin every external action to a full commit SHA.
+- [x] Checkout credentials must not persist unless write-back is explicitly required.
+- [x] Permissions must follow least privilege.
+- [x] The redundant `Immich Drive CI` workflow is removed.
+- [x] Inherited workflows remain untouched.
 
 ## Definition of done
 
