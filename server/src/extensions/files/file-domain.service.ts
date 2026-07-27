@@ -1,41 +1,80 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { FileEntry } from 'src/extensions/files/file-entry';
-import {
-  StorageAdapter,
-  StorageDeleteOptions,
-  StorageRange,
-  StorageWriteOptions,
-} from 'src/extensions/files/storage.adapter';
+import { StorageDeleteOptions, StorageRange, StorageWriteOptions } from 'src/extensions/files/storage.adapter';
+import { Volume } from 'src/extensions/files/volume';
+import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 
+/**
+ * Entry point for file-domain operations.
+ *
+ * Every operation is scoped to an owner and a volume. The service never receives a host path and
+ * never returns one: the registry maps a volume identifier to the adapter confined to that volume.
+ */
 @Injectable()
 export class FileDomainService {
-  constructor(private readonly storage: StorageAdapter) {}
+  constructor(@Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null) {}
 
-  getEntry(path: string): Promise<FileEntry | null> {
-    return this.storage.stat(path);
+  /**
+   * The registry exists only when the domain is configured. Every entry point goes through here so
+   * an unconfigured deployment answers consistently instead of failing somewhere deeper.
+   */
+  private requireVolumes(): VolumeRegistry {
+    if (!this.volumes) {
+      throw new BadRequestException('Immich Drive file storage is not enabled');
+    }
+
+    return this.volumes;
   }
 
-  listEntries(path: string): Promise<readonly FileEntry[]> {
-    return this.storage.list(path);
+  // Async so an unconfigured domain rejects like every other entry point instead of throwing
+  // synchronously, which would make the contract depend on which method a caller happened to use.
+  async listVolumes(ownerId: string): Promise<Volume[]> {
+    return this.requireVolumes().listVolumes(ownerId);
   }
 
-  openEntry(path: string, range?: StorageRange): Promise<AsyncIterable<Uint8Array>> {
-    return this.storage.open(path, range);
+  async getEntry(ownerId: string, volumeId: string, path: string): Promise<FileEntry | null> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.stat(path);
   }
 
-  writeEntry(path: string, content: AsyncIterable<Uint8Array>, options?: StorageWriteOptions): Promise<FileEntry> {
-    return this.storage.write(path, content, options);
+  async listEntries(ownerId: string, volumeId: string, path: string): Promise<readonly FileEntry[]> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.list(path);
   }
 
-  moveEntry(sourcePath: string, targetPath: string): Promise<void> {
-    return this.storage.move(sourcePath, targetPath);
+  async openEntry(
+    ownerId: string,
+    volumeId: string,
+    path: string,
+    range?: StorageRange,
+  ): Promise<AsyncIterable<Uint8Array>> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.open(path, range);
   }
 
-  copyEntry(sourcePath: string, targetPath: string): Promise<FileEntry> {
-    return this.storage.copy(sourcePath, targetPath);
+  async writeEntry(
+    ownerId: string,
+    volumeId: string,
+    path: string,
+    content: AsyncIterable<Uint8Array>,
+    options?: StorageWriteOptions,
+  ): Promise<FileEntry> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.write(path, content, options);
   }
 
-  deleteEntry(path: string, options?: StorageDeleteOptions): Promise<void> {
-    return this.storage.delete(path, options);
+  async moveEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<void> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.move(sourcePath, targetPath);
+  }
+
+  async copyEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<FileEntry> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.copy(sourcePath, targetPath);
+  }
+
+  async deleteEntry(ownerId: string, volumeId: string, path: string, options?: StorageDeleteOptions): Promise<void> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.delete(path, options);
   }
 }

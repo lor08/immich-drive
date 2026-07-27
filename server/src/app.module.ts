@@ -10,6 +10,8 @@ import { commandsAndQuestions } from 'src/commands';
 import { IWorker } from 'src/constants';
 import { controllers } from 'src/controllers';
 import { ImmichWorker } from 'src/enum';
+import { readDriveConfig } from 'src/extensions/files/files.config';
+import { FilesModule } from 'src/extensions/files/files.module';
 import { MaintenanceAuthGuard } from 'src/maintenance/maintenance-auth.guard';
 import { MaintenanceHealthRepository } from 'src/maintenance/maintenance-health.repository';
 import { MaintenanceWebsocketRepository } from 'src/maintenance/maintenance-websocket.repository';
@@ -63,6 +65,10 @@ const commonImports = [
 
 const bullImports = [BullModule.forRoot(bull.config), BullModule.registerQueue(...bull.queues)];
 
+// Registered unconditionally so the API contract does not depend on deployment configuration.
+// Immich Drive stays opt-in through IMMICH_DRIVE_ROOT, which gates behavior rather than routes.
+const driveModule = FilesModule.forRoot(readDriveConfig(process.env));
+
 // eslint-disable-next-line unicorn/no-top-level-side-effects
 configureUserAgent();
 
@@ -103,7 +109,7 @@ export class BaseModule implements OnModuleInit, OnModuleDestroy {
 }
 
 @Module({
-  imports: [...bullImports, ...commonImports, ScheduleModule.forRoot()],
+  imports: [...bullImports, ...commonImports, ScheduleModule.forRoot(), driveModule],
   controllers: [...controllers],
   providers: [...common, ...apiMiddleware, { provide: IWorker, useValue: ImmichWorker.Api }],
 })

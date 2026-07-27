@@ -168,6 +168,8 @@ export enum Permission {
   FaceUpdate = 'face.update',
   FaceDelete = 'face.delete',
 
+  FileRead = 'file.read',
+
   FolderRead = 'folder.read',
 
   JobCreate = 'job.create',
@@ -1181,6 +1183,7 @@ export enum ApiTag {
   Download = 'Download',
   Duplicates = 'Duplicates',
   Faces = 'Faces',
+  Files = 'Files',
   Integrity = 'Integrity (admin)',
   Jobs = 'Jobs',
   Libraries = 'Libraries',

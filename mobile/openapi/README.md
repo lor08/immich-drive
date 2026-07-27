@@ -172,6 +172,7 @@ Class | Method | HTTP request | Description
 *FacesApi* | [**deleteFace**](doc//FacesApi.md#deleteface) | **DELETE** /faces/{id} | Delete a face
 *FacesApi* | [**getFaces**](doc//FacesApi.md#getfaces) | **GET** /faces | Retrieve faces for asset
 *FacesApi* | [**reassignFacesById**](doc//FacesApi.md#reassignfacesbyid) | **PUT** /faces/{id} | Re-assign a face to another person
+*FilesApi* | [**getFileVolumes**](doc//FilesApi.md#getfilevolumes) | **GET** /files/volumes | List file volumes
 *JobsApi* | [**createJob**](doc//JobsApi.md#createjob) | **POST** /jobs | Create a manual job
 *JobsApi* | [**getQueuesLegacy**](doc//JobsApi.md#getqueueslegacy) | **GET** /jobs | Retrieve queue counts and status
 *JobsApi* | [**runQueueCommandLegacy**](doc//JobsApi.md#runqueuecommandlegacy) | **PUT** /jobs/{name} | Run jobs
@@ -450,6 +451,9 @@ Class | Method | HTTP request | Description
  - [ExifResponseDto](doc//ExifResponseDto.md)
  - [FaceDto](doc//FaceDto.md)
  - [FacialRecognitionConfig](doc//FacialRecognitionConfig.md)
+ - [FileVolumeAccess](doc//FileVolumeAccess.md)
+ - [FileVolumeKind](doc//FileVolumeKind.md)
+ - [FileVolumeResponseDto](doc//FileVolumeResponseDto.md)
  - [FoldersResponse](doc//FoldersResponse.md)
  - [FoldersUpdate](doc//FoldersUpdate.md)
  - [HlsVideoResolution](doc//HlsVideoResolution.md)

@@ -4,6 +4,18 @@ This document records every upstream-owned file that Immich Drive must touch to 
 
 Keep it current. If a future change adds a seam, add it here in the same pull request.
 
+## Seams the fork has taken on
+
+These are live. Every entry was added by a pull request that explains why the edit is unavoidable.
+
+| File                       | Taken on by | Reason                                                                       |
+| -------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `server/src/app.module.ts` | `P1-08`     | Registers `FilesModule` in `ApiModule`. One import line and one array entry. |
+| `server/src/enum.ts`       | `P1-08`     | `Permission.FileRead` and `ApiTag.Files`, appended to existing enums.        |
+| `server/src/constants.ts`  | `P1-08`     | `endpointTags` entry, required by the `Record<ApiTag, string>` type.         |
+
+Generated artifacts regenerated alongside them: `open-api/immich-openapi-specs.json`, `packages/sdk/src/fetch-client.ts`, and `mobile/openapi/**`.
+
 ## Measurement
 
 Backlog ID `P0-12`, Issue #19. Measured on a throwaway branch against `main` at `b002afa88`.
@@ -49,7 +61,8 @@ Two seams cannot silently drift, which materially lowers the maintenance risk:
 ## Consequences for day-to-day work
 
 - **Every server API change regenerates the Dart client**, even though Flutter work is deferred by [ADR 0006](../adr/0006-web-first-clients.md). The generated Dart tree is part of the repository contract, so a pull request that skips it fails CI.
-- **API changes require the full toolchain.** Regenerating the Dart client needs Java and the OpenAPI generator, so a contributor or agent without `mise` cannot complete an endpoint change. Server-only and web-only work does not have this constraint.
+- **API changes require the full toolchain, or Docker.** Regenerating the Dart client needs the OpenAPI generator, which is a Java program. Without `mise` it can be run through the `openapitools/openapi-generator-cli:v7.24.0` image, matching the version pinned in `open-api/openapitools.json`, followed by the patches in `open-api/bin/generate-dart-sdk.sh`. Verified during `P1-08` to reproduce the committed client byte for byte on an unchanged specification.
+- **The OpenAPI document must not depend on deployment configuration.** `P1-08` first registered the file module only when `IMMICH_DRIVE_ROOT` was set, which silently removed the endpoint from the specification and both clients whenever they were regenerated without that variable. The module is now registered unconditionally and the configuration gates behavior instead.
 - **Namespace Drive permissions.** `Permission` already contains `FolderRead` for the upstream folder view. Drive permissions use the `file.*` prefix so the two never collide.
 - **`enum.ts` and `constants.ts` are high-traffic upstream files.** Conflicts during upstream synchronization are likely but trivial, because our edits are single appended lines.
 

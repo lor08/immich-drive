@@ -1204,6 +1204,14 @@ export type FaceDto = {
     /** Face ID */
     id: string;
 };
+export type FileVolumeResponseDto = {
+    access: FileVolumeAccess;
+    /** Stable volume identifier used to address content */
+    id: string;
+    kind: FileVolumeKind;
+    /** Display name */
+    name: string;
+};
 export type QueueStatisticsDto = {
     /** Number of active jobs */
     active: number;
@@ -4795,6 +4803,17 @@ export function reassignFacesById({ id, faceDto }: {
     })));
 }
 /**
+ * List file volumes
+ */
+export function getFileVolumes(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileVolumeResponseDto[];
+    }>("/files/volumes", {
+        ...opts
+    }));
+}
+/**
  * Retrieve queue counts and status
  */
 export function getQueuesLegacy(opts?: Oazapfts.RequestOpts) {
@@ -7209,6 +7228,7 @@ export enum Permission {
     FaceRead = "face.read",
     FaceUpdate = "face.update",
     FaceDelete = "face.delete",
+    FileRead = "file.read",
     FolderRead = "folder.read",
     JobCreate = "job.create",
     JobRead = "job.read",
@@ -7360,6 +7380,14 @@ export enum SourceType {
     MachineLearning = "machine-learning",
     Exif = "exif",
     Manual = "manual"
+}
+export enum FileVolumeAccess {
+    ReadOnly = "read-only",
+    ReadWrite = "read-write"
+}
+export enum FileVolumeKind {
+    Private = "private",
+    Shared = "shared"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
