@@ -31,6 +31,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0005-delivery-backlog.md`       | `P0-03`    | Complete staged delivery backlog       | Done       | #13   | #14          | Documentation and process only.                                                            |
 | `0006-architecture-decisions.md` | `P0-11`    | Storage, index, and client decisions   | Done       | #17   | #18          | Adds ADR 0004-0007 and re-sequences Phase 1; documentation only.                           |
 | `0007-integration-seam-spike.md` | `P0-12`    | Integration seam measurement spike     | Done       | #19   | —            | Six upstream files measured; ADR 0008 keeps the domain in-process. Spike branch unmerged.  |
+| `0009-migration-architecture.md` | `P0-04`    | Migration and rollback architecture    | Done       | #9    | —            | ADR 0009: in-place image swap, opt-in domain. Implementation deferred to `P1-04`.          |
 
 ## Promoted architecture work awaiting task files
 
@@ -38,7 +39,6 @@ These Issues are valid architectural work, but implementation must not begin unt
 
 | Backlog ID       | Title                                | Status | Issue | Required next record                                                       |
 | ---------------- | ------------------------------------ | ------ | ----- | -------------------------------------------------------------------------- |
-| `P0-04` / `X-02` | Migration architecture               | Ready  | #9    | Add the next chronological task file before architecture implementation.   |
 | `P0-05` / `X-03` | Release and publication architecture | Ready  | #11   | Add the next chronological task file before workflow or packaging changes. |
 
 ## Promotable work with accepted decisions and no Issue yet
