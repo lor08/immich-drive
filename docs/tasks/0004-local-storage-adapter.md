@@ -47,11 +47,12 @@ Additional small error or helper types may be added inside the same feature boun
 
 - `/` represents the configured storage root.
 - Returned paths always use POSIX separators and begin with `/`.
-- The adapter accepts only file-domain virtual paths, never host absolute paths.
+- Inputs beginning with `/` are interpreted in the virtual namespace, never as host paths. For example, `/etc/passwd` can only address `<storage-root>/etc/passwd`; it must never address the host `/etc/passwd`.
+- Relative paths are rejected.
 - Empty input may be normalized to `/` only when the implementation does so consistently and tests document the behavior.
 - Reject null bytes.
 - Reject `.` and `..` path segments supplied by callers rather than silently normalizing traversal attempts.
-- Reject Windows drive letters and UNC paths.
+- Reject backslashes, Windows drive paths, and UNC paths.
 - Never return the configured host root or another absolute host path.
 
 ## Root and symlink safety
@@ -109,8 +110,9 @@ Use a temporary directory created for each test suite. Cover at least:
 - offset at EOF and beyond EOF;
 - invalid offset and length;
 - opening a directory;
-- traversal attempts;
-- absolute path injection, Windows drive path, UNC path, and null byte;
+- relative paths and traversal attempts;
+- POSIX-looking virtual paths remaining sandboxed below the configured root;
+- Windows drive path, UNC path, backslash, and null byte rejection;
 - symlink inside the root;
 - symlink escaping the root;
 - unsupported mutation methods;
@@ -124,7 +126,8 @@ Skip symlink-specific assertions only on a platform where creating symlinks is g
 - [ ] Missing paths return `null` from `stat`.
 - [ ] Directory entries use stable virtual paths and deterministic ordering.
 - [ ] Full-file and byte-range reads work with documented EOF behavior.
-- [ ] Traversal, absolute paths, null bytes, and symlink escape are rejected.
+- [ ] Relative paths, traversal, null bytes, Windows/UNC paths, and symlink escape are rejected.
+- [ ] POSIX-looking virtual paths remain sandboxed below the configured root.
 - [ ] Unsupported mutations fail explicitly without changing the filesystem.
 - [ ] No host absolute path is returned through the adapter contract.
 - [ ] No database entity, migration, API route, OpenAPI schema, or runtime module registration is added.
