@@ -1,13 +1,19 @@
 # Initial roadmap
 
-This roadmap favors small vertical slices and inexpensive synchronization with upstream Immich.
+This roadmap defines the product outcomes and exit conditions for each phase. The ordered implementation backlog, dependencies, and stable task identifiers live in `docs/product/delivery-plan.md`; promoted work and GitHub links live in `docs/tasks/index.md`.
+
+The roadmap favors small vertical slices and inexpensive synchronization with upstream Immich.
 
 ## Phase 0 — Project foundation
 
 - Product vision and architectural boundaries.
 - Agent and contributor guardrails.
 - Upstream synchronization strategy.
+- Migration and rollback architecture.
+- Fork-owned release and publication architecture.
 - ADRs for the file domain, transparent filesystem storage, and HTTPS-first access.
+
+Exit condition: contributors can build and validate the fork, migration and release boundaries are reviewed, upstream divergence can be measured, and validation cannot accidentally publish to an upstream namespace.
 
 ## Phase 1 — File storage core
 
@@ -17,9 +23,10 @@ This roadmap favors small vertical slices and inexpensive synchronization with u
 - Folder creation and listing.
 - Upload, download, rename, move, copy, and soft delete.
 - Ownership and authorization checks.
-- Path traversal and symlink-escape protection.
+- Path traversal, symlink-escape, and path-replacement protection.
+- Reconciliation and repair behavior.
 
-Exit condition: API tests prove that one user cannot access another user's files and that ordinary files remain readable on disk.
+Exit condition: API tests prove that one user cannot access another user's files, ordinary files remain readable on disk, and database/filesystem drift can be explained without destructive guessing.
 
 ## Phase 2 — First web vertical slice
 
@@ -28,8 +35,9 @@ Exit condition: API tests prove that one user cannot access another user's files
 - Drag-and-drop upload with progress.
 - Download, rename, move, delete, and restore.
 - Basic image, text, PDF, audio, and video previews where practical.
+- Storage-health and operator errors.
 
-Exit condition: a user can manage files without using the host filesystem.
+Exit condition: a user can manage files without using the host filesystem and existing Immich photo flows continue to pass regression tests.
 
 ## Phase 3 — Large files and media playback
 
@@ -38,8 +46,9 @@ Exit condition: a user can manage files without using the host filesystem.
 - Short-lived signed playback URLs.
 - Open-in-external-player actions.
 - Stable MIME and content-disposition behavior.
+- Bounded-memory transfer and performance tests.
 
-Exit condition: VLC can start and seek through a large remote video without downloading it in full.
+Exit condition: VLC can start and seek through a large remote video without downloading it in full, and interrupted uploads resume without corrupting final files.
 
 ## Phase 4 — External directories
 
@@ -48,8 +57,9 @@ Exit condition: VLC can start and seek through a large remote video without down
 - Initial scan and scheduled reconciliation.
 - Filesystem watcher as an optimization, not the only consistency mechanism.
 - Mount-health reporting.
+- Conflict and unavailable-mount behavior.
 
-Exit condition: an existing media directory appears in the UI without moving or duplicating files.
+Exit condition: an existing media directory appears in the UI without moving or duplicating files, and unavailable mounts never trigger destructive cleanup.
 
 ## Phase 5 — Filesystem exports
 
@@ -59,7 +69,7 @@ Exit condition: an existing media directory appears in the UI without moving or 
 - Access checks and export-health status.
 - No smart or virtual exports in the first iteration.
 
-Exit condition: Jellyfin can index a folder managed through Immich Drive using a stable read-only mount.
+Exit condition: Jellyfin and Plex can index a folder managed through Immich Drive using a stable read-only mount.
 
 ## Phase 6 — Flutter clients
 
@@ -69,6 +79,9 @@ Exit condition: Jellyfin can index a folder managed through Immich Drive using a
 - Android Storage Access Framework integration.
 - Android TV layout and D-pad focus behavior.
 - Desktop adaptations where Flutter support and plugins are sufficient.
+- Fork-owned signing and distribution.
+
+Exit condition: supported clients provide traceable release builds and complete ordinary file workflows without using upstream signing identities.
 
 ## Phase 7 — Cloud features
 
@@ -78,9 +91,17 @@ Exit condition: Jellyfin can index a folder managed through Immich Drive using a
 - Search and previews.
 - Favorites, recent files, and activity history.
 - Optional WebDAV or other compatibility adapters based on real demand.
+- Governance, audit, and scale-out behavior.
+
+Exit condition: collaboration and organization features enforce the same authorization and audit model as core file access.
 
 ## Delivery rules
 
-- Every phase should be split into reviewable issues and pull requests.
+- Every planned capability has a stable ID in `docs/product/delivery-plan.md`.
+- Future backlog items remain in versioned documentation; do not create placeholder Issues for all future work.
+- Promote a detailed task file and Issue when work is ready, active, blocked, or needed for an architectural decision.
+- Search the task index, existing Issues, pull requests, and branches before creating a new work record.
+- Every phase is split into reviewable tasks and pull requests.
 - New functionality must not modify Immich's `Asset` model.
 - A later phase may revise an earlier decision only through an ADR and migration plan.
+- A phase is complete only when its exit condition is demonstrated by automated validation and an operator workflow.
