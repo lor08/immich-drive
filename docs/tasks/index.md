@@ -27,7 +27,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0001-scaffold-file-domain.md`   | `P1-01`    | Scaffold isolated file domain          | Done       | #2    | #3           | Foundation for all file-domain server work.                                                |
 | `0002-fork-friendly-ci.md`       | `X-CI-01`  | Fork-friendly CI experiment            | Superseded | #4    | #5           | Replaced by inherited-workflow policy in `P0-02`; the added workflow was removed by PR #7. |
 | `0003-github-workflow-policy.md` | `P0-02`    | Align agents with inherited workflows  | Done       | #6    | #7           | Defines PR template, labels, CI, and security rules.                                       |
-| `0004-local-storage-adapter.md`  | `P1-02`    | Secure read-only local storage adapter | Active     | #8    | #10          | Depends on `P1-01`; must finish with green inherited CI.                                   |
+| `0004-local-storage-adapter.md`  | `P1-02`    | Secure read-only local storage adapter | Done       | #8    | #10          | Descriptor-safe read-only adapter; mutations still unsupported.                            |
 | `0005-delivery-backlog.md`       | `P0-03`    | Complete staged delivery backlog       | Done       | #13   | #14          | Documentation and process only.                                                            |
 | `0006-architecture-decisions.md` | `P0-11`    | Storage, index, and client decisions   | Active     | #17   | —            | Adds ADR 0004-0007 and re-sequences Phase 1; documentation only.                           |
 
