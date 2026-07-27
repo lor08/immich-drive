@@ -16,7 +16,9 @@ const readAll = async (content: AsyncIterable<Uint8Array>): Promise<Buffer> => {
   return Buffer.concat(chunks);
 };
 
-const emptyContent = async function* (): AsyncGenerator<Uint8Array> {};
+const testContent = async function* (): AsyncGenerator<Uint8Array> {
+  yield Uint8Array.from([1]);
+};
 
 describe(LocalStorageAdapter.name, () => {
   let workspace: string;
@@ -45,6 +47,20 @@ describe(LocalStorageAdapter.name, () => {
     const fileRoot = path.join(workspace, 'file-root');
     await fs.writeFile(fileRoot, 'not a directory');
     await expect(LocalStorageAdapter.create(fileRoot)).rejects.toMatchObject({
+      code: LocalStorageErrorCode.InvalidRoot,
+    });
+  });
+
+  it('detects replacement of the configured root after setup', async () => {
+    const originalRoot = path.join(workspace, 'original-root');
+    const outsideRoot = path.join(workspace, 'outside-root');
+    await fs.mkdir(outsideRoot);
+    await fs.writeFile(path.join(outsideRoot, 'secret.txt'), 'outside');
+
+    await fs.rename(root, originalRoot);
+    await fs.symlink(outsideRoot, root);
+
+    await expect(adapter.open('/secret.txt')).rejects.toMatchObject({
       code: LocalStorageErrorCode.InvalidRoot,
     });
   });
@@ -140,12 +156,14 @@ describe(LocalStorageAdapter.name, () => {
     await expect(adapter.open('/directory')).rejects.toMatchObject({ code: LocalStorageErrorCode.EntryNotFile });
   });
 
-  it('rejects relative, traversal, Windows, UNC, backslash, and null-byte paths', async () => {
+  it('rejects relative, traversal, non-canonical, Windows, UNC, backslash, and null-byte paths', async () => {
     const invalidPaths = [
       'relative.txt',
       '/../outside.txt',
       '/folder/../outside.txt',
       '/folder/./file.txt',
+      '/folder//file.txt',
+      '/folder/',
       'C:\\secret.txt',
       '/C:/secret.txt',
       '//server/share',
@@ -185,10 +203,39 @@ describe(LocalStorageAdapter.name, () => {
     await expect(adapter.open('/escape.txt')).rejects.toMatchObject({ code: LocalStorageErrorCode.SymlinkNotAllowed });
   });
 
+  it('rejects an intermediate directory symlink that escapes the root', async () => {
+    const outside = path.join(workspace, 'outside');
+    await fs.mkdir(outside);
+    await fs.writeFile(path.join(outside, 'secret.txt'), 'outside');
+    await fs.symlink(outside, path.join(root, 'linked-directory'));
+
+    await expect(adapter.open('/linked-directory/secret.txt')).rejects.toMatchObject({
+      code: LocalStorageErrorCode.SymlinkNotAllowed,
+    });
+  });
+
+  it('revalidates every path component when reading a previously opened iterable', async () => {
+    const originalDirectory = path.join(root, 'documents');
+    const movedDirectory = path.join(workspace, 'original-documents');
+    const outsideDirectory = path.join(workspace, 'outside-documents');
+    await fs.mkdir(originalDirectory);
+    await fs.mkdir(outsideDirectory);
+    await fs.writeFile(path.join(originalDirectory, 'report.txt'), 'inside');
+    await fs.writeFile(path.join(outsideDirectory, 'report.txt'), 'outside');
+
+    const content = await adapter.open('/documents/report.txt');
+    await fs.rename(originalDirectory, movedDirectory);
+    await fs.symlink(outsideDirectory, originalDirectory);
+
+    await expect(readAll(content)).rejects.toMatchObject({
+      code: LocalStorageErrorCode.SymlinkNotAllowed,
+    });
+  });
+
   it('fails mutation operations explicitly without changing the filesystem', async () => {
     const before = await fs.readdir(root);
 
-    await expect(adapter.write('/new.txt', emptyContent())).rejects.toMatchObject({
+    await expect(adapter.write('/new.txt', testContent())).rejects.toMatchObject({
       code: LocalStorageErrorCode.UnsupportedOperation,
     });
     await expect(adapter.move('/a.txt', '/b.txt')).rejects.toMatchObject({
