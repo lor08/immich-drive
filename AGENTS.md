@@ -15,14 +15,37 @@ Immich Drive extends Immich with a general-purpose file storage domain while pre
 - Do not repurpose Immich `Asset` entities, repositories, jobs, permissions, or album semantics for arbitrary files.
 - Do not rename or reorganize upstream directories without a dedicated architectural decision.
 
+## Planning and duplicate prevention
+
+Before creating or modifying a task file, Issue, branch, or pull request:
+
+1. Read `docs/product/delivery-plan.md` and identify the stable backlog ID.
+2. Read `docs/tasks/index.md` and search existing task files for that ID and equivalent wording.
+3. Search open and closed GitHub Issues.
+4. Search open, closed, and merged pull requests.
+5. Search existing branches.
+6. Confirm that no active record already represents the same capability.
+
+Additional rules:
+
+- The complete future backlog belongs in `docs/product/delivery-plan.md`; do not create placeholder Issues for every future item.
+- Promote a backlog item only when it is ready, active, blocked, or needed for an architectural decision.
+- One stable backlog ID may have only one active Issue, one active branch, and one active implementation pull request.
+- Record the stable backlog ID in the detailed task file and Issue, and include it in branch or pull-request context where practical.
+- Different wording does not make the same capability a separate task.
+- After any failed or ambiguous GitHub mutation, re-fetch repository state before retrying.
+- Before updating a file, fetch its current blob SHA and confirm the replacement is materially different.
+- Never create placeholder, duplicate, or no-op commits. Do not repeatedly submit identical file content.
+- When a duplicate is discovered, preserve and cross-link the canonical record, then close the duplicate with the appropriate reason.
+
 ## Git and task workflow
 
 - Never write implementation or task placeholders directly to `main`.
-- Create the linked GitHub Issue first, then create a dedicated branch from current `main`, then mutate files on that branch.
-- Keep a versioned specification under `docs/tasks/` and a linked GitHub Issue for every implementation task.
+- For promoted work, create or confirm the linked GitHub Issue first, then create a dedicated branch from current `main`, then mutate files on that branch.
+- Keep a versioned specification under `docs/tasks/` and a linked GitHub Issue for every promoted implementation or architecture task.
 - The task file owns stable scope, constraints, and acceptance criteria. The Issue owns live status, discussion, PR links, and validation output.
-- Reflect material scope changes in both the task file and the Issue.
-- Use one focused branch and one reviewable pull request per task.
+- Reflect material scope, sequencing, dependency, or acceptance changes in the delivery plan, task file, Issue, and task index as applicable.
+- Use one focused branch and one reviewable pull request per stable backlog ID.
 
 ## Pull request requirements
 
@@ -107,6 +130,6 @@ Before merging any PR, confirm:
 ## Scope discipline
 
 - One pull request should implement one reviewable capability.
-- Do not implement UI, database, storage, and platform integrations in one task unless the issue explicitly requires an end-to-end vertical slice.
-- Do not add SMB, WebDAV, FUSE, or object storage to the first MVP unless an accepted issue or ADR requests it.
-- When a requirement is unclear, prefer the smallest reversible design and record the assumption in the PR description.
+- Do not implement UI, database, storage, and platform integrations in one task unless the Issue explicitly requires an end-to-end vertical slice.
+- Do not add SMB, WebDAV, FUSE, or object storage to the first MVP unless an accepted Issue or ADR requests it.
+- When a requirement is unclear, prefer the smallest reversible design and record the assumption in the pull request description.
