@@ -64,11 +64,13 @@ Only small upstream-owned integration seams should need edits:
 
 The first implementation uses transparent filesystem storage with human-readable names. Object or chunk storage may be added later behind `StorageAdapter`, but must not be required for local managed storage.
 
+Content is organized into volumes: a private tree for each user, named shared spaces, and later registered external directories. Clients address content as a volume plus a relative path, never as a path from a global root; see [ADR 0004](../adr/0004-volume-path-model.md).
+
 Example:
 
 ```text
 /storage/users/<user-id>/files/Documents/report.pdf
-/storage/users/<user-id>/files/Media/Movies/movie.mkv
+/storage/shared/media/files/Movies/movie.mkv
 ```
 
 Host paths are implementation details and are never returned from ordinary user APIs.

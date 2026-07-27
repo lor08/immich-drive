@@ -12,6 +12,7 @@ The roadmap favors small vertical slices and inexpensive synchronization with up
 - Migration and rollback architecture.
 - Fork-owned release and publication architecture.
 - ADRs for the file domain, transparent filesystem storage, and HTTPS-first access.
+- ADRs for the volume path model, the deferred Drive-owned schema, web-first clients, and reconciliation with mount health.
 
 Exit condition: contributors can build and validate the fork, migration and release boundaries are reviewed, upstream divergence can be measured, and validation cannot accidentally publish to an upstream namespace.
 
@@ -19,8 +20,9 @@ Exit condition: contributors can build and validate the fork, migration and rele
 
 - Separate file and folder domain.
 - Local filesystem `StorageAdapter`.
-- Database metadata in an Immich Drive-owned schema or clearly prefixed tables.
-- Folder creation and listing.
+- Volumes: a private tree per user plus a shared space, addressed as volume and relative path.
+- Folder creation and listing on the filesystem alone, with no Drive-owned table.
+- Database metadata in clearly prefixed Immich Drive-owned tables, introduced with the index rather than before the first API.
 - Upload, download, rename, move, copy, and soft delete.
 - Ownership and authorization checks.
 - Path traversal, symlink-escape, and path-replacement protection.
@@ -72,6 +74,8 @@ Exit condition: an existing media directory appears in the UI without moving or 
 Exit condition: Jellyfin and Plex can index a folder managed through Immich Drive using a stable read-only mount.
 
 ## Phase 6 — Flutter clients
+
+Deferred until the file API stabilizes after the index. The web application is the only file client before that, which keeps API changes free and keeps signing and store distribution off the critical path.
 
 - Files browser in the existing Flutter application.
 - Upload, download, offline cache, and share/open actions.

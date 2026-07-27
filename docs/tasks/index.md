@@ -28,7 +28,8 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0002-fork-friendly-ci.md`       | `X-CI-01`  | Fork-friendly CI experiment            | Superseded | #4    | #5           | Replaced by inherited-workflow policy in `P0-02`; the added workflow was removed by PR #7. |
 | `0003-github-workflow-policy.md` | `P0-02`    | Align agents with inherited workflows  | Done       | #6    | #7           | Defines PR template, labels, CI, and security rules.                                       |
 | `0004-local-storage-adapter.md`  | `P1-02`    | Secure read-only local storage adapter | Active     | #8    | #10          | Depends on `P1-01`; must finish with green inherited CI.                                   |
-| `0005-delivery-backlog.md`       | `P0-03`    | Complete staged delivery backlog       | Active     | #13   | #14          | Documentation and process only.                                                            |
+| `0005-delivery-backlog.md`       | `P0-03`    | Complete staged delivery backlog       | Done       | #13   | #14          | Documentation and process only.                                                            |
+| `0006-architecture-decisions.md` | `P0-11`    | Storage, index, and client decisions   | Active     | #17   | —            | Adds ADR 0004-0007 and re-sequences Phase 1; documentation only.                           |
 
 ## Promoted architecture work awaiting task files
 
@@ -39,6 +40,17 @@ These Issues are valid architectural work, but implementation must not begin unt
 | `P0-04` / `X-02` | Migration architecture               | Ready  | #9    | Add the next chronological task file before architecture implementation.   |
 | `P0-05` / `X-03` | Release and publication architecture | Ready  | #11   | Add the next chronological task file before workflow or packaging changes. |
 
+## Promotable work with accepted decisions and no Issue yet
+
+These items are defined by an accepted ADR and may be promoted without further design work. They intentionally have no Issue until they are started.
+
+| Backlog ID | Title                              | Decided by | Notes                                                                                        |
+| ---------- | ---------------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `P0-12`    | Integration seam measurement spike | —          | Throwaway branch; the upstream-file count decides in-process module versus separate service. |
+| `P1-03`    | Storage-root configuration         | ADR 0004   | Startup validation, including non-overlap with Immich upload and library paths.              |
+| `P1-16`    | Volume and path namespace model    | ADR 0004   | Private volume per user plus one configured shared space; registry is configuration-driven.  |
+| `P1-17`    | Concurrency primitives             | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required.           |
+
 ## Foundation records without implementation task files
 
 | Backlog ID | Record                              | Status | Pull request | Notes                                                                     |
@@ -47,9 +59,10 @@ These Issues are valid architectural work, but implementation must not begin unt
 
 ## Next recommended sequence
 
-1. Finish `P1-02` / PR #10 and merge only after all inherited checks pass.
-2. Merge `P0-03` so every later task uses the complete delivery plan and duplicate-prevention rules.
-3. Promote and complete `P0-04` migration architecture before Drive-owned schema migrations are introduced.
-4. Promote `P1-03` storage-root configuration and overlap validation.
-5. Promote `P1-04` Drive-owned database schema after the migration boundaries are accepted.
-6. Complete `P0-05` release architecture before publishing stable images or signed clients.
+1. Merge `P0-11` so later tasks follow the accepted volume, schema-deferral, client, and reconciliation decisions.
+2. Run `P0-12`, the integration seam measurement spike, before further server work commits the fork to an in-process module.
+3. Promote `P1-03` storage-root configuration and overlap validation; nothing may be written to disk before it exists.
+4. Promote `P1-16` volumes and `P1-17` advisory locking, then the filesystem-only browse and write slices `P1-08` through `P1-10`.
+5. Promote `P2-01` and `P2-02` so the first slice is usable in the web client.
+6. Promote and complete `P0-04` migration architecture before `P1-04` introduces Drive-owned schema, and deliver `P1-06` reconciliation together with it.
+7. Complete `P0-05` release architecture before publishing stable images or signed clients.
