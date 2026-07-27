@@ -10,7 +10,9 @@ This versioned file is the source of truth for stable scope, constraints, and ac
 
 ## Status
 
-In review in draft PR #10. The adapter now uses descriptor-based traversal and revalidation to prevent root replacement, intermediate symlink substitution, and time-of-check/time-of-use path escapes. Fresh inherited checks are required before merge.
+In review in PR #10. The adapter uses descriptor-based traversal and revalidation to prevent root replacement, intermediate symlink substitution, and time-of-check/time-of-use path escapes.
+
+Two `unicorn` lint errors reported by the inherited `Test & Lint Server` job were fixed: an impossible `stats.size < 0` comparison was removed, and the range-length guard now reads through a local binding so the rule does not force `=== 0` and lose negative-length rejection. A descriptor-leak test was added because the descriptor-closing acceptance criterion had no coverage.
 
 ## Goal
 
@@ -140,17 +142,17 @@ Skip symlink-specific assertions only on a platform where creating symlinks is g
 
 ## Acceptance criteria
 
-- [ ] Normal files and directories can be statted and listed.
-- [ ] Missing paths return `null` from `stat`.
-- [ ] Directory entries use stable virtual paths and deterministic ordering.
-- [ ] Full-file and byte-range reads work with documented EOF behavior.
-- [ ] Relative paths, traversal, null bytes, Windows/UNC paths, and symlink escape are rejected.
-- [ ] Root replacement and intermediate path-component substitution cannot escape the configured root.
-- [ ] POSIX-looking virtual paths remain sandboxed below the configured root.
-- [ ] Unsupported mutations fail explicitly without changing the filesystem.
-- [ ] No host absolute path is returned through the adapter contract.
-- [ ] All descriptors are closed on success, failure, and generator completion.
-- [ ] No database entity, migration, API route, OpenAPI schema, or runtime module registration is added.
+- [x] Normal files and directories can be statted and listed.
+- [x] Missing paths return `null` from `stat`.
+- [x] Directory entries use stable virtual paths and deterministic ordering.
+- [x] Full-file and byte-range reads work with documented EOF behavior.
+- [x] Relative paths, traversal, null bytes, Windows/UNC paths, and symlink escape are rejected.
+- [x] Root replacement and intermediate path-component substitution cannot escape the configured root.
+- [x] POSIX-looking virtual paths remain sandboxed below the configured root.
+- [x] Unsupported mutations fail explicitly without changing the filesystem.
+- [x] No host absolute path is returned through the adapter contract.
+- [x] All descriptors are closed on success, failure, and generator completion.
+- [x] No database entity, migration, API route, OpenAPI schema, or runtime module registration is added.
 - [ ] Relevant inherited Immich formatting, linting, type checking, unit tests, and security checks pass.
 
 ## Non-goals
