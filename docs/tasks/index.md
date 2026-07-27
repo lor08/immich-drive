@@ -34,16 +34,16 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0008-storage-root-config.md`    | `P1-03`    | Storage-root configuration             | Done       | #22   | #23          | Opt-in via `IMMICH_DRIVE_ROOT`; overlap with Immich media paths fails startup.             |
 | `0009-migration-architecture.md` | `P0-04`    | Migration and rollback architecture    | Done       | #9    | —            | ADR 0009: in-place image swap, opt-in domain. Implementation deferred to `P1-04`.          |
 | `0010-release-architecture.md`   | `P0-05`    | Release and publication architecture   | Done       | #11   | —            | ADR 0010: GHCR only, renamed image, no fork-built ML. Workflow work split out as `P0-13`.  |
+| `0011-volume-model.md`           | `P1-16`    | Volume and path namespace model        | Active     | #26   | —            | Private volume per owner plus one configured shared space; adapter confined to `files/`.   |
 
 ## Promotable work with accepted decisions and no Issue yet
 
 These items are defined by an accepted ADR and may be promoted without further design work. They intentionally have no Issue until they are started.
 
-| Backlog ID | Title                           | Decided by | Notes                                                                                       |
-| ---------- | ------------------------------- | ---------- | ------------------------------------------------------------------------------------------- |
-| `P0-13`    | Fork-owned publication workflow | ADR 0010   | Edits inherited `docker.yml`; must record the new seam in the inventory.                    |
-| `P1-16`    | Volume and path namespace model | ADR 0004   | Private volume per user plus one configured shared space; registry is configuration-driven. |
-| `P1-17`    | Concurrency primitives          | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required.          |
+| Backlog ID | Title                           | Decided by | Notes                                                                              |
+| ---------- | ------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| `P0-13`    | Fork-owned publication workflow | ADR 0010   | Edits inherited `docker.yml`; must record the new seam in the inventory.           |
+| `P1-17`    | Concurrency primitives          | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required. |
 
 ## Foundation records without implementation task files
 
