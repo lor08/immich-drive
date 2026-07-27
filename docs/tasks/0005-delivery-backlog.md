@@ -4,11 +4,11 @@
 
 - Stable backlog ID: `P0-03`
 - GitHub Issue: [#13 — Document complete staged delivery backlog](https://github.com/lor08/immich-drive/issues/13)
-- Implementation pull request: pending
+- Implementation pull request: [#14 — Add staged delivery backlog](https://github.com/lor08/immich-drive/pull/14)
 
 ## Status
 
-Active in `agent/issue-13-delivery-backlog`.
+Active in draft PR #14.
 
 ## Goal
 
