@@ -42,6 +42,8 @@ Three files, all additive, recorded in the [seam inventory](../architecture/inte
 
 Regenerated: the OpenAPI document, the TypeScript client, and the Dart client.
 
+This pull request also records the three workflow files that `P0-14` edited, because that task was blocked on the same document and recording them twice would have guaranteed a conflict.
+
 ## Non-goals
 
 - Folder listing and creation, which are `P1-18`.

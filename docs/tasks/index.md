@@ -36,6 +36,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0010-release-architecture.md`   | `P0-05`    | Release and publication architecture   | Done       | #11   | —            | ADR 0010: GHCR only, renamed image, no fork-built ML. Workflow work split out as `P0-13`.  |
 | `0011-volume-model.md`           | `P1-16`    | Volume and path namespace model        | Done       | #26   | #27          | Private volume per owner plus one configured shared space; adapter confined to `files/`.   |
 | `0012-volume-discovery.md`       | `P1-08`    | Volume discovery and registration      | Active     | #28   | —            | First upstream seam taken on; folder listing and creation split out as `P1-18`.            |
+| `0013-fork-runnable-ci.md`       | `P0-14`    | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever. |
 
 ## Promotable work with accepted decisions and no Issue yet
 
