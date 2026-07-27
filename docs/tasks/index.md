@@ -31,15 +31,15 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0005-delivery-backlog.md`       | `P0-03`    | Complete staged delivery backlog       | Done       | #13   | #14          | Documentation and process only.                                                            |
 | `0006-architecture-decisions.md` | `P0-11`    | Storage, index, and client decisions   | Done       | #17   | #18          | Adds ADR 0004-0007 and re-sequences Phase 1; documentation only.                           |
 | `0007-integration-seam-spike.md` | `P0-12`    | Integration seam measurement spike     | Done       | #19   | —            | Six upstream files measured; ADR 0008 keeps the domain in-process. Spike branch unmerged.  |
+| `0010-release-architecture.md`   | `P0-05`    | Release and publication architecture   | Done       | #11   | —            | ADR 0010: GHCR only, renamed image, no fork-built ML. Workflow work split out as `P0-13`.  |
 
 ## Promoted architecture work awaiting task files
 
 These Issues are valid architectural work, but implementation must not begin until a versioned task file is added and this index is updated.
 
-| Backlog ID       | Title                                | Status | Issue | Required next record                                                       |
-| ---------------- | ------------------------------------ | ------ | ----- | -------------------------------------------------------------------------- |
-| `P0-04` / `X-02` | Migration architecture               | Ready  | #9    | Add the next chronological task file before architecture implementation.   |
-| `P0-05` / `X-03` | Release and publication architecture | Ready  | #11   | Add the next chronological task file before workflow or packaging changes. |
+| Backlog ID       | Title                  | Status | Issue | Required next record                                                     |
+| ---------------- | ---------------------- | ------ | ----- | ------------------------------------------------------------------------ |
+| `P0-04` / `X-02` | Migration architecture | Ready  | #9    | Add the next chronological task file before architecture implementation. |
 
 ## Promotable work with accepted decisions and no Issue yet
 
@@ -48,6 +48,7 @@ These items are defined by an accepted ADR and may be promoted without further d
 | Backlog ID | Title                           | Decided by | Notes                                                                                       |
 | ---------- | ------------------------------- | ---------- | ------------------------------------------------------------------------------------------- |
 | `P1-03`    | Storage-root configuration      | ADR 0004   | Startup validation, including non-overlap with Immich upload and library paths.             |
+| `P0-13`    | Fork-owned publication workflow | ADR 0010   | Edits inherited `docker.yml`; must record the new seam in the inventory.                    |
 | `P1-16`    | Volume and path namespace model | ADR 0004   | Private volume per user plus one configured shared space; registry is configuration-driven. |
 | `P1-17`    | Concurrency primitives          | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required.          |
 
@@ -63,4 +64,4 @@ These items are defined by an accepted ADR and may be promoted without further d
 2. Promote `P1-16` volumes and `P1-17` advisory locking, then the filesystem-only browse and write slices `P1-08` through `P1-10`.
 3. Promote `P2-01` and `P2-02` so the first slice is usable in the web client.
 4. Promote and complete `P0-04` migration architecture before `P1-04` introduces Drive-owned schema, and deliver `P1-06` reconciliation together with it.
-5. Complete `P0-05` release architecture before publishing stable images or signed clients.
+5. Run `P0-13` before publishing anything, so no build can push under an upstream name.
