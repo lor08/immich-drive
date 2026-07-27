@@ -15,6 +15,61 @@ Immich Drive extends Immich with a general-purpose file storage domain while pre
 - Do not repurpose Immich `Asset` entities, repositories, jobs, permissions, or album semantics for arbitrary files.
 - Do not rename or reorganize upstream directories without a dedicated architectural decision.
 
+## Git and task workflow
+
+- Never write implementation or task placeholders directly to `main`.
+- Create the linked GitHub Issue first, then create a dedicated branch from current `main`, then mutate files on that branch.
+- Keep a versioned specification under `docs/tasks/` and a linked GitHub Issue for every implementation task.
+- The task file owns stable scope, constraints, and acceptance criteria. The Issue owns live status, discussion, PR links, and validation output.
+- Reflect material scope changes in both the task file and the Issue.
+- Use one focused branch and one reviewable pull request per task.
+
+## Pull request requirements
+
+Before creating or editing a pull request, read:
+
+- `.github/pull_request_template.md`;
+- `CONTRIBUTING.md`;
+- `docs/architecture/github-workflow-policy.md`;
+- relevant files under `.github/workflows/`.
+
+Every agent-created pull request must:
+
+- use a Conventional Commit title, for example `feat(files): add storage adapter`;
+- preserve the exact required headings and checklist from `.github/pull_request_template.md`;
+- complete every applicable template section and explain non-applicable items;
+- include `Fixes #<issue>` when the PR should close an Issue;
+- honestly disclose the degree of LLM use;
+- list testing and CI results truthfully, leaving checks unchecked until they pass;
+- carry exactly one existing `changelog:*` label before it is ready for review;
+- normally use `changelog:skip` for internal scaffolding, documentation, refactoring, and CI-only changes;
+- remain a draft until the patch has been self-reviewed and all expected validation is running or complete.
+
+Repository automation may close a PR whose description does not follow the template. Correct the body first; do not repeatedly force-reopen or merge around the automation.
+
+## GitHub Actions rules
+
+- Treat inherited Immich workflows as the validation source of truth unless a documented fork-specific gap proves otherwise.
+- Do not duplicate an inherited workflow merely because it references upstream infrastructure; first verify whether the applicable jobs run successfully in this fork.
+- Do not edit inherited workflow files without an explicit task and justification.
+- Pin every third-party action or reusable workflow to a full commit SHA and include a version comment.
+- Set top-level workflow permissions to `{}` or the minimum read-only permissions.
+- Grant write permissions only to the specific job that requires them.
+- Set `persist-credentials: false` on `actions/checkout` unless the workflow intentionally commits or pushes changes.
+- Do not expose secrets to pull requests from forks.
+- Prefer GitHub-hosted runners for fork-owned validation. Use a custom runner only when the task documents why it is required.
+- Validation workflows must not publish packages, push images, deploy, or mutate repository state.
+- Address Zizmor and CodeQL findings before merge; never dismiss them merely to make a PR green.
+
+Before merging any PR, confirm:
+
+- the PR is open, mergeable, and no longer a draft;
+- exactly one `changelog:*` label is present;
+- the PR body still conforms to the repository template;
+- all applicable inherited checks completed successfully or a documented exception was approved;
+- there are no unresolved review threads or security findings;
+- the expected head SHA has not changed.
+
 ## File domain boundaries
 
 - Keep arbitrary files and folders in a separate domain from Immich assets.
