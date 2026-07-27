@@ -409,7 +409,7 @@ export class LocalStorageAdapter extends StorageAdapter {
   private toFileEntry(virtualPath: string, stats: Stats): FileEntry {
     const type = LocalStorageAdapter.toFileEntryType(stats);
 
-    if (!Number.isSafeInteger(stats.size) || stats.size < 0) {
+    if (!Number.isSafeInteger(stats.size)) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Storage entry size is not supported');
     }
 
@@ -443,7 +443,8 @@ export class LocalStorageAdapter extends StorageAdapter {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.RangeNotSatisfiable, 'Invalid storage range offset');
     }
 
-    if (range?.length !== undefined && (!Number.isSafeInteger(range.length) || range.length <= 0)) {
+    const requestedLength = range?.length;
+    if (requestedLength !== undefined && (!Number.isSafeInteger(requestedLength) || requestedLength <= 0)) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.RangeNotSatisfiable, 'Invalid storage range length');
     }
 
