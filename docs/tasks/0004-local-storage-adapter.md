@@ -10,7 +10,7 @@ This versioned file is the source of truth for stable scope, constraints, and ac
 
 ## Status
 
-In review in draft PR #10.
+In review in draft PR #10. The inherited `fix:formatting` workflow normalized the implementation and tests; fresh inherited checks are running from this user-authored follow-up commit.
 
 ## Goal
 
