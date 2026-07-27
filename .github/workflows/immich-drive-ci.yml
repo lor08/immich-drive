@@ -1,0 +1,74 @@
+name: Immich Drive CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'packages/plugin-core/**'
+      - 'packages/plugin-sdk/**'
+      - 'packages/sdk/**'
+      - 'pnpm-lock.yaml'
+      - 'mise.toml'
+      - '.github/workflows/immich-drive-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'packages/plugin-core/**'
+      - 'packages/plugin-sdk/**'
+      - 'packages/sdk/**'
+      - 'pnpm-lock.yaml'
+      - 'mise.toml'
+      - '.github/workflows/immich-drive-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Validate server
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.13.1 --activate
+
+      - name: Install server and plugin workspaces
+        run: >-
+          pnpm install
+          --filter immich
+          --filter @immich/sdk
+          --filter @immich/plugin-sdk
+          --filter @immich/plugin-core
+          --frozen-lockfile
+
+      - name: Build plugin workspaces
+        run: pnpm --filter @immich/sdk --filter @immich/plugin-sdk --filter @immich/plugin-core build
+
+      - name: Check formatting
+        run: pnpm --dir server format
+
+      - name: Run linter
+        run: pnpm --dir server lint
+
+      - name: Run TypeScript checks
+        run: pnpm --dir server check
+
+      - name: Run server unit tests
+        run: pnpm --dir server test --run
