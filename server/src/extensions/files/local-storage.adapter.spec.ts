@@ -200,12 +200,10 @@ describe(LocalStorageAdapter.name, () => {
   });
 
   it('uses stable public errors without leaking the host root', async () => {
-    await expect(adapter.open('/missing.txt')).rejects.toSatisfy((error: unknown) => {
-      return (
-        error instanceof LocalStorageAdapterError &&
-        error.code === LocalStorageErrorCode.EntryNotFound &&
-        !error.message.includes(root)
-      );
-    });
+    const error = await adapter.open('/missing.txt').catch((error: unknown) => error);
+
+    expect(error).toBeInstanceOf(LocalStorageAdapterError);
+    expect(error).toMatchObject({ code: LocalStorageErrorCode.EntryNotFound });
+    expect((error as Error).message).not.toContain(root);
   });
 });
