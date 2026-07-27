@@ -1,5 +1,5 @@
 import { constants, type Stats } from 'node:fs';
-import fs from 'node:fs/promises';
+import fs, { type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { FileEntry, FileEntryType } from 'src/extensions/files/file-entry';
 import {
@@ -279,7 +279,7 @@ export class LocalStorageAdapter extends StorageAdapter {
       return;
     }
 
-    let handle: fs.FileHandle;
+    let handle: FileHandle;
     try {
       handle = await fs.open(hostPath, constants.O_RDONLY | constants.O_NOFOLLOW);
     } catch (error) {
@@ -330,6 +330,6 @@ export class LocalStorageAdapter extends StorageAdapter {
   }
 
   private isErrno(error: unknown, code: string): error is NodeJS.ErrnoException {
-    return error instanceof Error && 'code' in error && error.code === code;
+    return (error as NodeJS.ErrnoException | undefined)?.code === code;
   }
 }
