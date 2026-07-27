@@ -17,6 +17,16 @@ const FILE_DESCRIPTOR_ROOTS: Partial<Record<NodeJS.Platform, string>> = {
   darwin: '/dev/fd',
 };
 
+const compareNames = (left: string, right: string): number => {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+};
+
 export enum LocalStorageErrorCode {
   InvalidRoot = 'invalid-root',
   InvalidPath = 'invalid-path',
@@ -138,7 +148,7 @@ export class LocalStorageAdapter extends StorageAdapter {
       }
 
       const entries = await fs.readdir(this.descriptorPath(directory.handle), { withFileTypes: true });
-      entries.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+      entries.sort((left, right) => compareNames(left.name, right.name));
 
       const result: FileEntry[] = [];
       for (const entry of entries) {
@@ -161,10 +171,6 @@ export class LocalStorageAdapter extends StorageAdapter {
         }
 
         try {
-          if (!child.stats.isFile() && !child.stats.isDirectory()) {
-            continue;
-          }
-
           result.push(this.toFileEntry(this.joinVirtualPath(directory.virtualPath, entry.name), child.stats));
         } finally {
           await child.handle.close();
@@ -401,14 +407,7 @@ export class LocalStorageAdapter extends StorageAdapter {
   }
 
   private toFileEntry(virtualPath: string, stats: Stats): FileEntry {
-    let type: FileEntryType;
-    if (stats.isFile()) {
-      type = FileEntryType.File;
-    } else if (stats.isDirectory()) {
-      type = FileEntryType.Directory;
-    } else {
-      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Unsupported storage entry type');
-    }
+    const type = LocalStorageAdapter.toFileEntryType(stats);
 
     if (!Number.isSafeInteger(stats.size) || stats.size < 0) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Storage entry size is not supported');
@@ -524,6 +523,16 @@ export class LocalStorageAdapter extends StorageAdapter {
 
   private isErrno(error: unknown, code: string): error is NodeJS.ErrnoException {
     return (error as NodeJS.ErrnoException | undefined)?.code === code;
+  }
+
+  private static toFileEntryType(stats: Stats): FileEntryType {
+    if (stats.isFile()) {
+      return FileEntryType.File;
+    }
+    if (stats.isDirectory()) {
+      return FileEntryType.Directory;
+    }
+    throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Unsupported storage entry type');
   }
 
   private static identity(stats: BigIntStats): FileIdentity {
