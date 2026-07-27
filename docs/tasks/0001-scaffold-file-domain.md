@@ -10,7 +10,7 @@ This versioned file is the source of truth for scope, constraints, and acceptanc
 
 ## Status
 
-In review in draft PR #3. The implementation branch was rebuilt on the current `main` after the repository automation policy was established, so inherited Immich checks can validate a clean diff.
+In review in draft PR #3. The implementation branch was rebuilt on the current `main`, and the inherited `fix:formatting` workflow normalized the documentation and TypeScript files. Fresh inherited checks are running from a user-authored follow-up commit.
 
 ## Goal
 
