@@ -59,7 +59,12 @@ describe(LocalStorageAdapter.name, () => {
 
     expect(rootEntry).toMatchObject({ path: '/', name: '/', type: FileEntryType.Directory });
     expect(directory).toMatchObject({ path: '/documents', name: 'documents', type: FileEntryType.Directory });
-    expect(file).toMatchObject({ path: '/documents/report.txt', name: 'report.txt', type: FileEntryType.File, size: 6 });
+    expect(file).toMatchObject({
+      path: '/documents/report.txt',
+      name: 'report.txt',
+      type: FileEntryType.File,
+      size: 6,
+    });
     expect(JSON.stringify([rootEntry, directory, file])).not.toContain(root);
   });
 

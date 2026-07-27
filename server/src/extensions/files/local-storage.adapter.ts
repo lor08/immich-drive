@@ -299,7 +299,10 @@ export class LocalStorageAdapter extends StorageAdapter {
       }
 
       if (window.offset > stats.size) {
-        throw new LocalStorageAdapterError(LocalStorageErrorCode.RangeNotSatisfiable, 'Storage range starts beyond EOF');
+        throw new LocalStorageAdapterError(
+          LocalStorageErrorCode.RangeNotSatisfiable,
+          'Storage range starts beyond EOF',
+        );
       }
 
       let position = window.offset;
