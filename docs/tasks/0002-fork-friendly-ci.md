@@ -3,13 +3,13 @@
 ## Tracking
 
 - GitHub Issue: [#4 — Add fork-friendly server CI](https://github.com/lor08/immich-drive/issues/4)
-- Implementation PR: pending
+- Implementation PR: [#5 — ci: add fork-friendly server validation](https://github.com/lor08/immich-drive/pull/5)
 
 This versioned file is the source of truth for scope, constraints, and acceptance criteria. GitHub Issue #4 is the live execution log for status, discussion, implementation decisions, pull requests, and validation results.
 
 ## Status
 
-Ready for implementation.
+In review in draft PR #5.
 
 ## Goal
 
