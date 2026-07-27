@@ -19,6 +19,30 @@ const readAll = async (content: AsyncIterable<Uint8Array>): Promise<Buffer> => {
 
 const testContent = Readable.from([Uint8Array.from([1])]);
 
+// The adapter only supports platforms exposing descriptors through this directory.
+const descriptorDirectory = process.platform === 'darwin' ? '/dev/fd' : '/proc/self/fd';
+
+const countOpenDescriptors = async (): Promise<number> => {
+  const descriptors = await fs.readdir(descriptorDirectory);
+  return descriptors.length;
+};
+
+// Exercises every read path, including a failure and an abandoned iterable, so leaked descriptors accumulate.
+const exerciseReadPaths = async (adapter: LocalStorageAdapter): Promise<void> => {
+  await adapter.stat('/documents');
+  await adapter.stat('/missing.txt');
+  await adapter.list('/documents');
+  await readAll(await adapter.open('/documents/report.txt'));
+  await readAll(await adapter.open('/documents/report.txt', { offset: 2, length: 4 }));
+  await expect(adapter.list('/documents/report.txt')).rejects.toBeInstanceOf(LocalStorageAdapterError);
+
+  const cancelled = await adapter.open('/documents/report.txt');
+  for await (const chunk of cancelled) {
+    expect(chunk.length).toBeGreaterThan(0);
+    break;
+  }
+};
+
 describe(LocalStorageAdapter.name, () => {
   let workspace: string;
   let root: string;
@@ -248,6 +272,21 @@ describe(LocalStorageAdapter.name, () => {
     });
 
     await expect(fs.readdir(root)).resolves.toEqual(before);
+  });
+
+  it('closes every descriptor on success, failure, and cancelled iteration', async () => {
+    await fs.mkdir(path.join(root, 'documents'));
+    await fs.writeFile(path.join(root, 'documents', 'report.txt'), 'immich-drive');
+
+    // Warm up first so descriptors opened lazily by the runtime are not attributed to the adapter.
+    await exerciseReadPaths(adapter);
+    const before = await countOpenDescriptors();
+
+    for (let round = 0; round < 5; round++) {
+      await exerciseReadPaths(adapter);
+    }
+
+    await expect(countOpenDescriptors()).resolves.toBeLessThanOrEqual(before);
   });
 
   it('uses stable public errors without leaking the host root', async () => {
