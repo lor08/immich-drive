@@ -1,0 +1,75 @@
+# Task 0001: Scaffold an isolated server-side file domain
+
+## Status
+
+Ready after the architecture bootstrap PR is merged.
+
+## Goal
+
+Create the smallest compile-safe server-side boundary for the Immich Drive file domain. This task is intentionally limited to architecture scaffolding and must not implement file persistence, database tables, API endpoints, uploads, streaming, external directories, exports, web UI, or Flutter UI.
+
+## Required reading
+
+- `AGENTS.md`
+- `docs/architecture/overview.md`
+- `docs/architecture/file-storage.md`
+- `docs/adr/0001-separate-file-domain.md`
+- `docs/adr/0002-transparent-filesystem-storage.md`
+
+## Scope
+
+Create an isolated feature boundary, provisionally under:
+
+```text
+server/src/extensions/files/
+```
+
+Add minimal types and contracts sufficient to establish the intended dependency direction. Suggested components:
+
+```text
+files.module.ts
+file-domain.service.ts
+storage.adapter.ts
+file-entry.ts
+```
+
+Exact names may be adjusted to match current Immich server conventions after inspecting the repository.
+
+The storage contract should represent capabilities without importing Node filesystem APIs into the domain service. It may include type signatures for operations such as stat, list, open, write, move, copy, and delete, but implementations are out of scope.
+
+Register the new module only if registration is necessary for the project to compile and test. Keep any upstream-owned integration diff minimal and explain it in the pull request.
+
+## Acceptance criteria
+
+- [ ] New code is isolated from Immich asset entities, repositories, services, jobs, and album permissions.
+- [ ] No existing migration is changed and no new migration is added.
+- [ ] No API route or OpenAPI schema is added.
+- [ ] No physical filesystem operation is implemented.
+- [ ] No production dependency is added unless clearly justified.
+- [ ] The file-domain service depends on an abstract storage contract, not `node:fs`.
+- [ ] Unit tests verify the basic service boundary or contract behavior without touching the real filesystem.
+- [ ] Relevant server formatting, linting, type checking, and tests pass.
+- [ ] The pull request lists every modified upstream-owned file and explains why the edit is necessary.
+
+## Non-goals
+
+- `FileEntry` database entity or repository
+- uploads and downloads
+- folder CRUD
+- HTTP ranges or signed playback URLs
+- external directories
+- Jellyfin or Plex exports
+- web navigation
+- Flutter changes
+
+## Codex instructions
+
+1. Inspect current Immich server module, dependency-injection, testing, and repository conventions before writing code.
+2. Prefer adapting this task's provisional structure to established repository patterns rather than introducing a parallel framework.
+3. Keep the patch small and reversible.
+4. Do not refactor unrelated Immich code.
+5. Open a draft pull request and include commands and results for all validation performed.
+
+## Definition of done
+
+A reviewer can see a clean, tested extension boundary and approve the dependency direction before storage or database implementation begins.
