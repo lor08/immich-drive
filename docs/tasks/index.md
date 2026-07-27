@@ -33,14 +33,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0007-integration-seam-spike.md` | `P0-12`    | Integration seam measurement spike     | Done       | #19   | —            | Six upstream files measured; ADR 0008 keeps the domain in-process. Spike branch unmerged.  |
 | `0008-storage-root-config.md`    | `P1-03`    | Storage-root configuration             | Done       | #22   | #23          | Opt-in via `IMMICH_DRIVE_ROOT`; overlap with Immich media paths fails startup.             |
 | `0009-migration-architecture.md` | `P0-04`    | Migration and rollback architecture    | Done       | #9    | —            | ADR 0009: in-place image swap, opt-in domain. Implementation deferred to `P1-04`.          |
-
-## Promoted architecture work awaiting task files
-
-These Issues are valid architectural work, but implementation must not begin until a versioned task file is added and this index is updated.
-
-| Backlog ID       | Title                                | Status | Issue | Required next record                                                       |
-| ---------------- | ------------------------------------ | ------ | ----- | -------------------------------------------------------------------------- |
-| `P0-05` / `X-03` | Release and publication architecture | Ready  | #11   | Add the next chronological task file before workflow or packaging changes. |
+| `0010-release-architecture.md`   | `P0-05`    | Release and publication architecture   | Done       | #11   | —            | ADR 0010: GHCR only, renamed image, no fork-built ML. Workflow work split out as `P0-13`.  |
 
 ## Promotable work with accepted decisions and no Issue yet
 
@@ -48,6 +41,7 @@ These items are defined by an accepted ADR and may be promoted without further d
 
 | Backlog ID | Title                           | Decided by | Notes                                                                                       |
 | ---------- | ------------------------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `P0-13`    | Fork-owned publication workflow | ADR 0010   | Edits inherited `docker.yml`; must record the new seam in the inventory.                    |
 | `P1-16`    | Volume and path namespace model | ADR 0004   | Private volume per user plus one configured shared space; registry is configuration-driven. |
 | `P1-17`    | Concurrency primitives          | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required.          |
 
@@ -62,4 +56,4 @@ These items are defined by an accepted ADR and may be promoted without further d
 1. Promote `P1-16` volumes and `P1-17` advisory locking, then the filesystem-only browse and write slices `P1-08` through `P1-10`.
 2. Promote `P2-01` and `P2-02` so the first slice is usable in the web client.
 3. Deliver `P1-04` schema together with `P1-06` reconciliation. ADR 0009 already fixes the migration and rollback rules, so this is where the documented downgrade procedure and the upgrade fixture test become due.
-4. Complete `P0-05` release architecture before publishing stable images or signed clients.
+4. Run `P0-13` before publishing anything, so no build can push under an upstream name.
