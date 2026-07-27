@@ -4,7 +4,7 @@
 
 - Stable backlog ID: `P0-12`
 - GitHub Issue: [#19 — Measure the upstream integration seam for a working file slice](https://github.com/lor08/immich-drive/issues/19)
-- Spike branch: `spike/p0-12-seam-measurement` — evidence only, must not be merged
+- Spike branch: `spike/p0-12-seam-measurement` — never merged, deleted once the measurement was accepted
 - Result: [`docs/architecture/integration-seams.md`](../architecture/integration-seams.md) and [ADR 0008](../adr/0008-in-process-file-module.md)
 
 This versioned file is the source of truth for stable scope and acceptance criteria. GitHub Issue #19 is the live execution log.
