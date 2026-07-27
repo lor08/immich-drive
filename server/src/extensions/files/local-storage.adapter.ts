@@ -76,7 +76,7 @@ export class LocalStorageAdapter extends StorageAdapter {
     }
 
     const descriptorRoot = FILE_DESCRIPTOR_ROOTS[process.platform];
-    if (!descriptorRoot) {
+    if (descriptorRoot === undefined) {
       throw new LocalStorageAdapterError(
         LocalStorageErrorCode.UnsupportedPlatform,
         'Secure local storage is not supported on this platform',
@@ -111,7 +111,7 @@ export class LocalStorageAdapter extends StorageAdapter {
 
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Storage root cannot be opened safely');
     } finally {
-      if (handle) {
+      if (handle !== undefined) {
         await handle.close();
       }
     }
@@ -119,7 +119,7 @@ export class LocalStorageAdapter extends StorageAdapter {
 
   override async stat(virtualPath: string): Promise<FileEntry | null> {
     const entry = await this.resolveExisting(virtualPath);
-    if (!entry) {
+    if (entry === null) {
       return null;
     }
 
@@ -156,7 +156,7 @@ export class LocalStorageAdapter extends StorageAdapter {
           throw error;
         }
 
-        if (!child) {
+        if (child === null) {
           continue;
         }
 
@@ -222,7 +222,7 @@ export class LocalStorageAdapter extends StorageAdapter {
 
   private async resolveRequired(virtualPath: string): Promise<OpenedEntry> {
     const entry = await this.resolveExisting(virtualPath);
-    if (!entry) {
+    if (entry === null) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Storage entry does not exist');
     }
 
@@ -247,7 +247,7 @@ export class LocalStorageAdapter extends StorageAdapter {
         const child = await this.openChild(current, segment, index < segments.length - 1);
         await current.close();
 
-        if (!child) {
+        if (child === null) {
           return null;
         }
 
@@ -284,7 +284,7 @@ export class LocalStorageAdapter extends StorageAdapter {
 
       return handle;
     } catch (error) {
-      if (handle) {
+      if (handle !== undefined) {
         await handle.close();
       }
       if (error instanceof LocalStorageAdapterError) {
@@ -346,7 +346,7 @@ export class LocalStorageAdapter extends StorageAdapter {
         stats: await handle.stat(),
       };
     } catch (error) {
-      if (handle) {
+      if (handle !== undefined) {
         await handle.close();
       }
       if (this.isErrno(error, 'ENOENT')) {
@@ -366,7 +366,7 @@ export class LocalStorageAdapter extends StorageAdapter {
   }
 
   private normalizeVirtualPath(virtualPath: string): string {
-    if (!virtualPath || virtualPath.includes('\0')) {
+    if (virtualPath.length === 0 || virtualPath.includes('\0')) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Invalid storage path');
     }
 
@@ -381,7 +381,7 @@ export class LocalStorageAdapter extends StorageAdapter {
 
     const segments = virtualPath === '/' ? [] : virtualPath.slice(1).split('/');
     for (const segment of segments) {
-      if (!segment || segment === '.' || segment === '..' || /^[A-Za-z]:$/.test(segment)) {
+      if (segment.length === 0 || segment === '.' || segment === '..' || /^[A-Za-z]:$/.test(segment)) {
         throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Invalid storage path');
       }
     }
@@ -424,7 +424,14 @@ export class LocalStorageAdapter extends StorageAdapter {
   }
 
   private joinVirtualPath(parent: string, name: string): string {
-    if (!name || name.includes('/') || name.includes('\\') || name.includes('\0') || name === '.' || name === '..') {
+    if (
+      name.length === 0 ||
+      name.includes('/') ||
+      name.includes('\\') ||
+      name.includes('\0') ||
+      name === '.' ||
+      name === '..'
+    ) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Invalid storage entry name');
     }
 
