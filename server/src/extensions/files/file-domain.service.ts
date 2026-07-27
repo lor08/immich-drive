@@ -23,11 +23,7 @@ export class FileDomainService {
     return this.storage.open(path, range);
   }
 
-  writeEntry(
-    path: string,
-    content: AsyncIterable<Uint8Array>,
-    options?: StorageWriteOptions,
-  ): Promise<FileEntry> {
+  writeEntry(path: string, content: AsyncIterable<Uint8Array>, options?: StorageWriteOptions): Promise<FileEntry> {
     return this.storage.write(path, content, options);
   }
 
