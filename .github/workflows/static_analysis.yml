@@ -105,8 +105,10 @@ jobs:
           echo "Changed files: ${CHANGED_FILES}"
           exit 1
 
+      # DCM is licensed and only upstream holds the credentials. Without them the task aborts before
+      # analysing anything, so forks run the free Dart analysis rather than losing both.
       - name: Run analyze
-        run: mise //mobile:analyze
+        run: mise //mobile:analyze${{ github.repository_owner == 'immich-app' && '' || ':dart' }}
 
       - name: Run format
         run: mise //mobile:format

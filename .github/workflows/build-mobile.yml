@@ -75,7 +75,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    if: ${{ github.actor != 'dependabot[bot]' && fromJSON(needs.pre-job.outputs.should_run).mobile == true }}
+    # Needs the `mich` runner and upstream signing identities, neither of which a fork has, and
+    # Flutter work is deferred by ADR 0006. Restored with P6-09.
+    if: ${{ github.actor != 'dependabot[bot]' && fromJSON(needs.pre-job.outputs.should_run).mobile == true && github.repository_owner == 'immich-app' }}
     runs-on: mich
 
     steps:
