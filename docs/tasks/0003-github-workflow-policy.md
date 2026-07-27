@@ -2,14 +2,14 @@
 
 ## Tracking
 
-- GitHub Issue: pending
+- GitHub Issue: [#6 — Align agent workflow with inherited Immich automation](https://github.com/lor08/immich-drive/issues/6)
 - Implementation PR: pending
 
-This versioned file is the source of truth for scope, constraints, and acceptance criteria. The corresponding GitHub Issue is the live execution log.
+This versioned file is the source of truth for scope, constraints, and acceptance criteria. GitHub Issue #6 is the live execution log.
 
 ## Status
 
-Preparing implementation.
+Ready for implementation.
 
 ## Goal
 
@@ -28,7 +28,7 @@ Make automated agents follow the inherited Immich pull-request and GitHub Action
 ## Scope
 
 - Update `AGENTS.md` with PR-template, title, label, Actions security, and inherited-CI rules.
-- Add a durable workflow policy document under `docs/architecture/`.
+- Maintain `docs/architecture/github-workflow-policy.md` as the durable repository automation reference.
 - Remove `.github/workflows/immich-drive-ci.yml`.
 - Mark Task 0002 as superseded by inherited Immich CI.
 - Do not edit inherited Immich workflow files in this task.
