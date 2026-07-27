@@ -4,51 +4,40 @@
 
 - GitHub Issue: [#4 — Add fork-friendly server CI](https://github.com/lor08/immich-drive/issues/4)
 - Implementation PR: [#5 — ci: add fork-friendly server validation](https://github.com/lor08/immich-drive/pull/5)
+- Superseded by: [Task 0003](0003-github-workflow-policy.md) and [Issue #6](https://github.com/lor08/immich-drive/issues/6)
 
-This versioned file is the source of truth for scope, constraints, and acceptance criteria. GitHub Issue #4 is the live execution log for status, discussion, implementation decisions, pull requests, and validation results.
+This versioned file preserves the decision history. Task 0003 is the active source of truth for GitHub workflow policy.
 
 ## Status
 
-In review in draft PR #5.
+Superseded.
 
-## Goal
+PR #5 added `.github/workflows/immich-drive-ci.yml`, but subsequent validation showed that:
+
+- the inherited Immich `Test` workflow runs successfully in this fork after GitHub Actions are enabled;
+- the custom workflow duplicated inherited server validation;
+- the custom plugin build sequence failed while the inherited workflow passed;
+- Zizmor reported unpinned action references and persisted checkout credentials;
+- maintaining a parallel CI workflow would create unnecessary drift from upstream.
+
+The custom workflow is removed by Task 0003. Future validation should use inherited Immich workflows unless a specific, documented fork-only gap is demonstrated.
+
+## Original goal
 
 Add a minimal GitHub Actions workflow for Immich Drive that validates server-side extension changes on standard GitHub-hosted runners without depending on upstream Immich secrets, GitHub Apps, or custom runners.
 
-## Context
+## Decision
 
-The inherited upstream `test.yml` creates a token using the upstream-only `PUSH_O_MATIC_APP_CLIENT_ID` and `PUSH_O_MATIC_APP_KEY` secrets. Some inherited jobs also use custom runners. Those dependencies are appropriate for `immich-app/immich`, but they are not portable to this fork.
+Do not maintain a separate general-purpose server CI workflow.
 
-## Scope
+Instead:
 
-Create `.github/workflows/immich-drive-ci.yml` with:
-
-- `pull_request`, `push` to `main`, and `workflow_dispatch` triggers;
-- path filtering for server changes and the workflow itself;
-- read-only repository permissions;
-- Node `24.15.0` and pnpm `11.13.1`;
-- installation of the server workspace and required plugin workspaces;
-- server formatting, linting, TypeScript checking, and unit tests;
-- no deployment, publishing, container builds, or secrets.
-
-## Acceptance criteria
-
-- [ ] Workflow runs on a pull request that changes `server/**`.
-- [ ] Workflow runs on pushes to `main` and supports manual dispatch.
-- [ ] Workflow uses only GitHub-hosted runners.
-- [ ] Workflow does not require repository secrets.
-- [ ] Workflow permissions are limited to `contents: read`.
-- [ ] Server formatter, linter, type checker, and unit tests run.
-- [ ] Upstream workflow files are not modified.
-
-## Non-goals
-
-- replacing or editing upstream Immich workflows;
-- Docker image builds;
-- mobile, web, machine-learning, CLI, or end-to-end test coverage;
-- release or deployment automation;
-- caching optimization.
+- preserve inherited Immich workflow files;
+- follow their commands, path filters, PR rules, and security conventions;
+- verify whether applicable inherited jobs actually work in the fork before adding replacements;
+- document any confirmed fork-only gap as a separate Issue and task;
+- make any replacement narrowly scoped to that gap.
 
 ## Definition of done
 
-The fork can validate Immich Drive server changes independently from upstream infrastructure.
+The historical experiment is documented, the redundant workflow is removed, and agents use the inherited workflow policy defined by Task 0003.
