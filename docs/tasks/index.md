@@ -22,28 +22,28 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 
 ## Promoted tasks
 
-| Task file | Backlog ID | Title | Status | Issue | Pull request | Dependencies / notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| `0001-scaffold-file-domain.md` | `P1-01` | Scaffold isolated file domain | Done | #2 | #3 | Foundation for all file-domain server work. |
-| `0002-fork-friendly-ci.md` | `X-CI-01` | Fork-friendly CI experiment | Superseded | #4 | #5 | Replaced by inherited-workflow policy in `P0-02`; the added workflow was removed by PR #7. |
-| `0003-github-workflow-policy.md` | `P0-02` | Align agents with inherited workflows | Done | #6 | #7 | Defines PR template, labels, CI, and security rules. |
-| `0004-local-storage-adapter.md` | `P1-02` | Secure read-only local storage adapter | Active | #8 | #10 | Depends on `P1-01`; must finish with green inherited CI. |
-| `0005-delivery-backlog.md` | `P0-03` | Complete staged delivery backlog | Active | #13 | #14 | Documentation and process only. |
+| Task file                        | Backlog ID | Title                                  | Status     | Issue | Pull request | Dependencies / notes                                                                       |
+| -------------------------------- | ---------- | -------------------------------------- | ---------- | ----- | ------------ | ------------------------------------------------------------------------------------------ |
+| `0001-scaffold-file-domain.md`   | `P1-01`    | Scaffold isolated file domain          | Done       | #2    | #3           | Foundation for all file-domain server work.                                                |
+| `0002-fork-friendly-ci.md`       | `X-CI-01`  | Fork-friendly CI experiment            | Superseded | #4    | #5           | Replaced by inherited-workflow policy in `P0-02`; the added workflow was removed by PR #7. |
+| `0003-github-workflow-policy.md` | `P0-02`    | Align agents with inherited workflows  | Done       | #6    | #7           | Defines PR template, labels, CI, and security rules.                                       |
+| `0004-local-storage-adapter.md`  | `P1-02`    | Secure read-only local storage adapter | Active     | #8    | #10          | Depends on `P1-01`; must finish with green inherited CI.                                   |
+| `0005-delivery-backlog.md`       | `P0-03`    | Complete staged delivery backlog       | Active     | #13   | #14          | Documentation and process only.                                                            |
 
 ## Promoted architecture work awaiting task files
 
 These Issues are valid architectural work, but implementation must not begin until a versioned task file is added and this index is updated.
 
-| Backlog ID | Title | Status | Issue | Required next record |
-| --- | --- | --- | --- | --- |
-| `P0-04` / `X-02` | Migration architecture | Ready | #9 | Add the next chronological task file before architecture implementation. |
-| `P0-05` / `X-03` | Release and publication architecture | Ready | #11 | Add the next chronological task file before workflow or packaging changes. |
+| Backlog ID       | Title                                | Status | Issue | Required next record                                                       |
+| ---------------- | ------------------------------------ | ------ | ----- | -------------------------------------------------------------------------- |
+| `P0-04` / `X-02` | Migration architecture               | Ready  | #9    | Add the next chronological task file before architecture implementation.   |
+| `P0-05` / `X-03` | Release and publication architecture | Ready  | #11   | Add the next chronological task file before workflow or packaging changes. |
 
 ## Foundation records without implementation task files
 
-| Backlog ID | Record | Status | Pull request | Notes |
-| --- | --- | --- | --- | --- |
-| `P0-01` | Product and architecture foundation | Done | #1 | Established vision, roadmap, architecture, ADRs, and initial task policy. |
+| Backlog ID | Record                              | Status | Pull request | Notes                                                                     |
+| ---------- | ----------------------------------- | ------ | ------------ | ------------------------------------------------------------------------- |
+| `P0-01`    | Product and architecture foundation | Done   | #1           | Established vision, roadmap, architecture, ADRs, and initial task policy. |
 
 ## Next recommended sequence
 
