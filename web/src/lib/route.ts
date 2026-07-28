@@ -68,6 +68,10 @@ export const Route = {
 
   // files
   files: (params?: { volumeId?: string; path?: string }) => '/files' + asQueryString(params),
+  // Absolute, because the browser fetches it directly. The server accepts the access-token cookie,
+  // so a plain link authenticates without the page having to stream bytes itself.
+  fileDownload: (params: { volumeId: string; path: string }) =>
+    `${getBaseUrl()}/files/download` + asQueryString(params),
 
   // folders
   folders: (params?: { path?: string }) => '/folders' + asQueryString(params),
