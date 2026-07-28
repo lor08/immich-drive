@@ -133,6 +133,7 @@ describe(ServerService.name, () => {
   describe('getFeatures', () => {
     it('should respond the server features', async () => {
       await expect(sut.getFeatures()).resolves.toEqual({
+        files: false,
         smartSearch: true,
         duplicateDetection: true,
         facialRecognition: true,

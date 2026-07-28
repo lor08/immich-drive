@@ -14,6 +14,8 @@
     mdiAccountOutline,
     mdiArchiveArrowDown,
     mdiArchiveArrowDownOutline,
+    mdiFile,
+    mdiFileOutline,
     mdiFolderOutline,
     mdiHeart,
     mdiHeartOutline,
@@ -94,6 +96,10 @@
 
   {#if authManager.preferences.folders.enabled && authManager.preferences.folders.sidebarWeb}
     <NavbarItem title={$t('folders')} href={Route.folders()} icon={{ icon: mdiFolderOutline, flipped: true }} />
+  {/if}
+
+  {#if featureFlagsManager.value.files}
+    <NavbarItem title={$t('files')} href={Route.files()} icon={mdiFileOutline} activeIcon={mdiFile} />
   {/if}
 
   <NavbarItem title={$t('utilities')} href={Route.utilities()} icon={mdiToolboxOutline} activeIcon={mdiToolbox} />

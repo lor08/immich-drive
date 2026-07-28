@@ -17,6 +17,7 @@ class ServerFeaturesDto {
     required this.duplicateDetection,
     required this.email,
     required this.facialRecognition,
+    this.files = const Optional.absent(),
     required this.importFaces,
     required this.map,
     required this.oauth,
@@ -42,6 +43,15 @@ class ServerFeaturesDto {
 
   /// Whether facial recognition is enabled
   bool facialRecognition;
+
+  /// Whether Immich Drive file storage is enabled
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Optional<bool?> files;
 
   /// Whether face import is enabled
   bool importFaces;
@@ -85,6 +95,7 @@ class ServerFeaturesDto {
     other.duplicateDetection == duplicateDetection &&
     other.email == email &&
     other.facialRecognition == facialRecognition &&
+    other.files == files &&
     other.importFaces == importFaces &&
     other.map == map &&
     other.oauth == oauth &&
@@ -105,6 +116,7 @@ class ServerFeaturesDto {
     (duplicateDetection.hashCode) +
     (email.hashCode) +
     (facialRecognition.hashCode) +
+    (files == null ? 0 : files!.hashCode) +
     (importFaces.hashCode) +
     (map.hashCode) +
     (oauth.hashCode) +
@@ -119,7 +131,7 @@ class ServerFeaturesDto {
     (trash.hashCode);
 
   @override
-  String toString() => 'ServerFeaturesDto[configFile=$configFile, duplicateDetection=$duplicateDetection, email=$email, facialRecognition=$facialRecognition, importFaces=$importFaces, map=$map, oauth=$oauth, oauthAutoLaunch=$oauthAutoLaunch, ocr=$ocr, passwordLogin=$passwordLogin, realtimeTranscoding=$realtimeTranscoding, reverseGeocoding=$reverseGeocoding, search=$search, sidecar=$sidecar, smartSearch=$smartSearch, trash=$trash]';
+  String toString() => 'ServerFeaturesDto[configFile=$configFile, duplicateDetection=$duplicateDetection, email=$email, facialRecognition=$facialRecognition, files=$files, importFaces=$importFaces, map=$map, oauth=$oauth, oauthAutoLaunch=$oauthAutoLaunch, ocr=$ocr, passwordLogin=$passwordLogin, realtimeTranscoding=$realtimeTranscoding, reverseGeocoding=$reverseGeocoding, search=$search, sidecar=$sidecar, smartSearch=$smartSearch, trash=$trash]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -127,6 +139,10 @@ class ServerFeaturesDto {
       json[r'duplicateDetection'] = this.duplicateDetection;
       json[r'email'] = this.email;
       json[r'facialRecognition'] = this.facialRecognition;
+    if (this.files.isPresent) {
+      final value = this.files.value;
+      json[r'files'] = value;
+    }
       json[r'importFaces'] = this.importFaces;
       json[r'map'] = this.map;
       json[r'oauth'] = this.oauth;
@@ -155,6 +171,7 @@ class ServerFeaturesDto {
         duplicateDetection: mapValueOfType<bool>(json, r'duplicateDetection')!,
         email: mapValueOfType<bool>(json, r'email')!,
         facialRecognition: mapValueOfType<bool>(json, r'facialRecognition')!,
+        files: json.containsKey(r'files') ? Optional.present(mapValueOfType<bool>(json, r'files')) : const Optional.absent(),
         importFaces: mapValueOfType<bool>(json, r'importFaces')!,
         map: mapValueOfType<bool>(json, r'map')!,
         oauth: mapValueOfType<bool>(json, r'oauth')!,

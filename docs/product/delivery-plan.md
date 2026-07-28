@@ -74,7 +74,7 @@ Sequencing note: browse and write capabilities are delivered on the filesystem a
 - **P1-06 — Initial scan and reconciliation engine — Backlog, delivered together with P1-04.** Index existing files, detect additions/removals/renames, recover from interruptions, and report conflicts without deleting unknown data. Volume health gates every removal; see [ADR 0007](../adr/0007-reconciliation-and-mount-health.md).
 - **P1-07 — Ownership and authorization model — Backlog.** Define owner, administrator, service, and future share permissions; centralize checks for every file operation. Drive permissions use the `file.*` namespace, since `Permission` already contains an upstream `FolderRead`.
 - **P1-08 — Volume discovery and module registration — Done.** One authenticated endpoint listing the caller's volumes, plus the module registration that serves it. This is the first upstream seam the fork takes on, recorded in the seam inventory. Delivered by PR #29.
-- **P1-18 — Folder listing API — Active.** List folder contents, and map domain errors onto status codes a client can act on. Tracked by Issue #32.
+- **P1-18 — Folder listing API — Done.** Lists folder contents and maps domain errors onto status codes a client can act on. Delivered by PR #33.
 - **P1-19 — Folder creation API — Ready.** Create directories atomically with naming rules, collision behaviour, and the adapter's first write path. Split out of `P1-18` so the first mutation gets the isolated review the read-only adapter received.
 - **P1-09 — Atomic upload pipeline — Backlog.** Stream uploads to temporary files, enforce limits, fsync where appropriate, finalize atomically, clean failures, and reconcile metadata.
 - **P1-10 — Authenticated download API — Backlog.** Stream files without loading them into memory; implement safe content disposition and authorization.
@@ -100,7 +100,7 @@ Goal: make the Phase 1 capabilities usable through the existing Immich web appli
 
 ### Tasks
 
-- **P2-01 — Web integration seam and Files navigation — Backlog.** Add isolated routes, navigation, permissions, feature flagging, and upstream-minimal integration edits.
+- **P2-01 — Web integration seam and Files navigation — Active.** Isolated route and feature directory, navigation entry gated on a new server feature flag so a disabled deployment looks untouched, and the web seams the `P0-12` spike predicted. Tracked by Issue #34.
 - **P2-02 — Folder browser — Backlog.** Implement breadcrumbs, sorting, pagination or virtualization, selection, empty/loading/error states, and refresh behavior.
 - **P2-03 — Upload queue — Backlog.** Add drag-and-drop, picker uploads, progress, cancellation, retry, collision choices, and navigation-safe background state.
 - **P2-04 — File and folder actions — Backlog.** Create folder, download, rename, move, copy, trash, restore, and permanent delete with confirmation and conflict UX.

@@ -2046,6 +2046,8 @@ export type ServerFeaturesDto = {
     email: boolean;
     /** Whether facial recognition is enabled */
     facialRecognition: boolean;
+    /** Whether Immich Drive file storage is enabled */
+    files?: boolean;
     /** Whether face import is enabled */
     importFaces: boolean;
     /** Whether map feature is enabled */
