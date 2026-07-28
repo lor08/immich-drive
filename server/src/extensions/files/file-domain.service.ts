@@ -106,25 +106,29 @@ export class FileDomainService {
     return adapter.open(path, range);
   }
 
-  async writeEntry(
-    ownerId: string,
-    volumeId: string,
-    path: string,
-    content: AsyncIterable<Uint8Array>,
-    options?: StorageWriteOptions,
-  ): Promise<FileEntry> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
-    return adapter.write(path, content, options);
-  }
-
+  /**
+   * Moves an entry, holding the lock on both paths.
+   *
+   * Two paths mean two locks, and two locks taken in the order they were written would deadlock on
+   * the symmetric request: moving `/a` to `/b` while another request moves `/b` to `/a`. The keys are
+   * therefore ordered by the lock layer rather than by the caller, which turns that pair into a queue.
+   */
   async moveEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<void> {
     const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
-    return adapter.move(sourcePath, targetPath);
+
+    return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], () => adapter.move(sourcePath, targetPath));
   }
 
+  /**
+   * Copies a file, holding the lock on both paths.
+   *
+   * The source is locked as well as the target, so the file cannot be moved out from under the copy
+   * between the check that it is a regular file and the read that follows.
+   */
   async copyEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<FileEntry> {
     const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
-    return adapter.copy(sourcePath, targetPath);
+
+    return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], () => adapter.copy(sourcePath, targetPath));
   }
 
   async deleteEntry(ownerId: string, volumeId: string, path: string, options?: StorageDeleteOptions): Promise<void> {

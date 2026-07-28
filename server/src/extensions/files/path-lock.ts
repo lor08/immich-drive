@@ -27,6 +27,20 @@ export const pathLockId = (volumeId: string, path: string): number => {
   return digest.readInt32BE(0);
 };
 
+/**
+ * Orders the lock keys for a set of paths.
+ *
+ * Sorting is what prevents a deadlock. A request moving `/a` to `/b` and another moving `/b` to `/a`
+ * would otherwise each hold what the other waits for; PostgreSQL would break the cycle by aborting
+ * one of them, and a user should not receive a deadlock error for an ordinary rename. Ordering by the
+ * key itself makes both requests queue instead, without either caller knowing about the other.
+ *
+ * Duplicates are collapsed, because two different paths can hash to the same key and because a caller
+ * may name the same path twice. Acquiring one key twice would otherwise require releasing it twice.
+ */
+export const orderedPathLockIds = (volumeId: string, paths: readonly string[]): number[] =>
+  [...new Set(paths.map((path) => pathLockId(volumeId, path)))].sort((left, right) => left - right);
+
 @Injectable()
 export class PathLock {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
@@ -39,15 +53,33 @@ export class PathLock {
    * filesystem work would be wrong for long operations such as uploads.
    */
   async withPathLock<T>(volumeId: string, path: string, handler: () => Promise<T>): Promise<T> {
-    const objectId = pathLockId(volumeId, path);
+    return this.withPathLocks(volumeId, [path], handler);
+  }
+
+  /**
+   * Runs `handler` while holding the locks for several paths in one volume.
+   *
+   * The keys are acquired in the deterministic order above and released in reverse. Only what was
+   * actually acquired is released, so a failure part-way through the sequence still leaves nothing
+   * held.
+   */
+  async withPathLocks<T>(volumeId: string, paths: readonly string[], handler: () => Promise<T>): Promise<T> {
+    const objectIds = orderedPathLockIds(volumeId, paths);
 
     return this.db.connection().execute(async (connection) => {
-      await sql`SELECT pg_advisory_lock(${DRIVE_LOCK_CLASS}, ${objectId})`.execute(connection);
+      const acquired: number[] = [];
 
       try {
+        for (const objectId of objectIds) {
+          await sql`SELECT pg_advisory_lock(${DRIVE_LOCK_CLASS}, ${objectId})`.execute(connection);
+          acquired.push(objectId);
+        }
+
         return await handler();
       } finally {
-        await sql`SELECT pg_advisory_unlock(${DRIVE_LOCK_CLASS}, ${objectId})`.execute(connection);
+        for (const objectId of acquired.toReversed()) {
+          await sql`SELECT pg_advisory_unlock(${DRIVE_LOCK_CLASS}, ${objectId})`.execute(connection);
+        }
       }
     });
   }

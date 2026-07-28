@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Post, Put, Query, Req, StreamableFile, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Put,
+  Query,
+  Req,
+  StreamableFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Readable } from 'node:stream';
@@ -7,10 +19,12 @@ import { AuthDto } from 'src/dtos/auth.dto';
 import { ApiTag, Permission } from 'src/enum';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import {
+  FileCopyDto,
   FileDownloadDto,
   FileEntryListDto,
   FileEntryResponseDto,
   FileFolderCreateDto,
+  FileMoveDto,
   FileUploadDto,
   FileVolumeResponseDto,
 } from 'src/extensions/files/files.dto';
@@ -83,6 +97,31 @@ export class FilesController {
     });
 
     return { ...entry };
+  }
+
+  @Post('move')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Authenticated({ permission: Permission.FileUpdate })
+  @Endpoint({
+    summary: 'Move or rename an entry',
+    description:
+      'Moves a file or folder inside one volume, which also covers renaming. The target parent must already exist and the target itself must be free: an occupied target is a conflict rather than a replacement. Both paths belong to the same volume, so this never moves content between volumes.',
+    history: HistoryBuilder.v3(),
+  })
+  async moveFileEntry(@Auth() auth: AuthDto, @Body() dto: FileMoveDto): Promise<void> {
+    await this.service.moveEntry(auth.user.id, dto.volumeId, dto.sourcePath, dto.targetPath);
+  }
+
+  @Post('copy')
+  @Authenticated({ permission: Permission.FileCreate })
+  @Endpoint({
+    summary: 'Copy a file',
+    description:
+      'Copies one file inside a volume. The content is staged and renamed into place, so a partial copy is never visible at the target. Copying a folder is not supported: a tree can be arbitrarily large and needs a background job rather than a request.',
+    history: HistoryBuilder.v3(),
+  })
+  async copyFileEntry(@Auth() auth: AuthDto, @Body() dto: FileCopyDto): Promise<FileEntryResponseDto> {
+    return { ...(await this.service.copyEntry(auth.user.id, dto.volumeId, dto.sourcePath, dto.targetPath)) };
   }
 
   @Get('download')

@@ -16,6 +16,63 @@ class FilesApi {
 
   final ApiClient apiClient;
 
+  /// Copy a file
+  ///
+  /// Copies one file inside a volume. The content is staged and renamed into place, so a partial copy is never visible at the target. Copying a folder is not supported: a tree can be arbitrarily large and needs a background job rather than a request.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [FileCopyDto] fileCopyDto (required):
+  Future<Response> copyFileEntryWithHttpInfo(FileCopyDto fileCopyDto, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/copy';
+
+    // ignore: prefer_final_locals
+    Object? postBody = fileCopyDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Copy a file
+  ///
+  /// Copies one file inside a volume. The content is staged and renamed into place, so a partial copy is never visible at the target. Copying a folder is not supported: a tree can be arbitrarily large and needs a background job rather than a request.
+  ///
+  /// Parameters:
+  ///
+  /// * [FileCopyDto] fileCopyDto (required):
+  Future<FileEntryResponseDto?> copyFileEntry(FileCopyDto fileCopyDto, { Future<void>? abortTrigger, }) async {
+    final response = await copyFileEntryWithHttpInfo(fileCopyDto, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileEntryResponseDto',) as FileEntryResponseDto;
+    
+    }
+    return null;
+  }
+
   /// Create a folder
   ///
   /// Creates one folder inside a volume. The parent must already exist: creation is not recursive, so a mistyped path fails rather than materialising a hierarchy.
@@ -264,6 +321,55 @@ class FilesApi {
 
     }
     return null;
+  }
+
+  /// Move or rename an entry
+  ///
+  /// Moves a file or folder inside one volume, which also covers renaming. The target parent must already exist and the target itself must be free: an occupied target is a conflict rather than a replacement. Both paths belong to the same volume, so this never moves content between volumes.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [FileMoveDto] fileMoveDto (required):
+  Future<Response> moveFileEntryWithHttpInfo(FileMoveDto fileMoveDto, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/move';
+
+    // ignore: prefer_final_locals
+    Object? postBody = fileMoveDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Move or rename an entry
+  ///
+  /// Moves a file or folder inside one volume, which also covers renaming. The target parent must already exist and the target itself must be free: an occupied target is a conflict rather than a replacement. Both paths belong to the same volume, so this never moves content between volumes.
+  ///
+  /// Parameters:
+  ///
+  /// * [FileMoveDto] fileMoveDto (required):
+  Future<void> moveFileEntry(FileMoveDto fileMoveDto, { Future<void>? abortTrigger, }) async {
+    final response = await moveFileEntryWithHttpInfo(fileMoveDto, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
   }
 
   /// Upload a file

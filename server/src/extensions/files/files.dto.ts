@@ -59,6 +59,34 @@ const FileUploadSchema = z
   })
   .meta({ id: 'FileUploadDto' });
 
+/**
+ * A move, which also expresses a rename: a rename is a move whose parent does not change, and the
+ * two are one operation on the filesystem.
+ *
+ * One volume identifier covers both paths, so a cross-volume move cannot be expressed here at all.
+ * That is deliberate rather than an omission: volumes can be separate filesystems and separate
+ * ownership, so moving between them is a copy followed by a delete and needs its own operation.
+ */
+const FileMoveSchema = z
+  .object({
+    volumeId: z.string().describe('Volume holding both the source and the target'),
+    sourcePath: z.string().describe('Virtual path of the entry to move'),
+    targetPath: z
+      .string()
+      .describe('Virtual path the entry is moved to. Its parent must already exist and must be free.'),
+  })
+  .meta({ id: 'FileMoveDto' });
+
+const FileCopySchema = z
+  .object({
+    volumeId: z.string().describe('Volume holding both the source and the target'),
+    sourcePath: z.string().describe('Virtual path of the file to copy. Directories are not supported.'),
+    targetPath: z
+      .string()
+      .describe('Virtual path the copy is written to. Its parent must already exist and must be free.'),
+  })
+  .meta({ id: 'FileCopyDto' });
+
 const FileEntryListSchema = z
   .object({
     volumeId: z.string().describe('Volume to list, as returned by the volume endpoint'),
@@ -71,3 +99,5 @@ export class FileEntryListDto extends createZodDto(FileEntryListSchema) {}
 export class FileDownloadDto extends createZodDto(FileDownloadSchema) {}
 export class FileFolderCreateDto extends createZodDto(FileFolderCreateSchema) {}
 export class FileUploadDto extends createZodDto(FileUploadSchema) {}
+export class FileMoveDto extends createZodDto(FileMoveSchema) {}
+export class FileCopyDto extends createZodDto(FileCopySchema) {}
