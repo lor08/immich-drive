@@ -43,17 +43,19 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0018-path-locks.md`             | `P1-17`         | Path advisory locks                    | Done       | #40   | #41          | Two-argument lock space; cannot collide with Immich's `DatabaseLock` keys.                 |
 | `0019-folder-creation.md`        | `P1-19`         | Folder creation API                    | Done       | #42   | #43          | First write to disk; descriptor-relative, non-recursive, conflicts are `409`.              |
 | `0020-file-upload.md`            | `P1-09`         | Atomic upload pipeline                 | Done       | #44   | #45          | Staging root beside the address root; interrupted uploads leave nothing behind.            |
-| `0021-web-file-actions.md`       | `P2-03`/`P2-04` | Web actions for the file domain        | Active     | #46   | —            | Create, upload, download from the interface; the rest of both items stays in the backlog.  |
+| `0021-web-file-actions.md`       | `P2-03`/`P2-04` | Web actions for the file domain        | Done       | #46   | #47          | Create, upload, download from the interface; the rest of both items stays in the backlog.  |
+| `0022-offline-dart-templates.md` | `P0-15`         | Offline Dart template generation       | Active     | #48   | —            | Removes a third-party fetch from a required check; refresh kept behind a flag.             |
 | `0013-fork-runnable-ci.md`       | `P0-14`         | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever. |
 
 ## Promotable work with accepted decisions and no Issue yet
 
 These items are defined by an accepted ADR and may be promoted without further design work. They intentionally have no Issue until they are started.
 
-| Backlog ID | Title                           | Decided by | Notes                                                                              |
-| ---------- | ------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
-| `P0-13`    | Fork-owned publication workflow | ADR 0010   | Edits inherited `docker.yml`; must record the new seam in the inventory.           |
-| `P1-17`    | Concurrency primitives          | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required. |
+| Backlog ID | Title                            | Decided by | Notes                                                                              |
+| ---------- | -------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| `P0-16`    | Diagnosable e2e database startup | —          | Observability first; the cause of refused connections is not yet established.      |
+| `P0-13`    | Fork-owned publication workflow  | ADR 0010   | Edits inherited `docker.yml`; must record the new seam in the inventory.           |
+| `P1-17`    | Concurrency primitives           | ADR 0005   | PostgreSQL advisory locks keyed by normalized volume and path; no schema required. |
 
 ## Foundation records without implementation task files
 
@@ -63,7 +65,7 @@ These items are defined by an accepted ADR and may be promoted without further d
 
 ## Next recommended sequence
 
-1. Finish `P2-03`/`P2-04` web actions, which make everything the API supports usable without a terminal.
+1. Finish `P0-15`, then `P0-16`, so a red check means something is actually wrong.
 2. Promote `P1-17` advisory locking, then the write slices `P1-19`, `P1-09`, and `P1-10`.
 3. Deliver `P1-04` schema together with `P1-06` reconciliation. ADR 0009 already fixes the migration and rollback rules, so this is where the documented downgrade procedure and the upgrade fixture test become due.
 4. Run `P0-13` before publishing anything, so no build can push under an upstream name.
