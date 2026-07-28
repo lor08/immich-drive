@@ -6280,6 +6280,87 @@
         "x-immich-state": "Stable"
       }
     },
+    "/files/content": {
+      "put": {
+        "description": "Writes the request body to a path inside a volume. The content is staged and renamed into place, so a partial file is never visible at the target. The parent must already exist, and an existing file is only replaced when overwrite is set.",
+        "operationId": "uploadFile",
+        "parameters": [
+          {
+            "name": "overwrite",
+            "required": false,
+            "in": "query",
+            "description": "Replace an existing file instead of failing",
+            "schema": {
+              "default": false,
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "description": "Virtual path of the file. The parent must already exist.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Volume to write into",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntryResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Upload a file",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.upload"
+      }
+    },
     "/files/download": {
       "get": {
         "description": "Streams a file from a volume. Whole files only; range requests are not supported yet.",
@@ -21261,6 +21342,7 @@
           "file.read",
           "file.download",
           "file.create",
+          "file.upload",
           "folder.read",
           "job.create",
           "job.read",

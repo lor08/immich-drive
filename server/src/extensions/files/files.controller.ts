@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, Query, StreamableFile, UseInterceptors } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Put, Query, Req, StreamableFile, UseInterceptors } from '@nestjs/common';
+import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { Readable } from 'node:stream';
 import { Endpoint, HistoryBuilder } from 'src/decorators';
 import { AuthDto } from 'src/dtos/auth.dto';
@@ -10,6 +11,7 @@ import {
   FileEntryListDto,
   FileEntryResponseDto,
   FileFolderCreateDto,
+  FileUploadDto,
   FileVolumeResponseDto,
 } from 'src/extensions/files/files.dto';
 import { FileDomainErrorInterceptor } from 'src/extensions/files/files.interceptor';
@@ -57,6 +59,30 @@ export class FilesController {
   })
   async createFileFolder(@Auth() auth: AuthDto, @Body() dto: FileFolderCreateDto): Promise<FileEntryResponseDto> {
     return { ...(await this.service.createFolder(auth.user.id, dto.volumeId, dto.path)) };
+  }
+
+  @Put('content')
+  @Authenticated({ permission: Permission.FileUpload })
+  @ApiConsumes('application/octet-stream')
+  @ApiBody({ required: true, schema: { type: 'string', format: 'binary' } })
+  @Endpoint({
+    summary: 'Upload a file',
+    description:
+      'Writes the request body to a path inside a volume. The content is staged and renamed into place, so a partial file is never visible at the target. The parent must already exist, and an existing file is only replaced when overwrite is set.',
+    history: HistoryBuilder.v3(),
+  })
+  async uploadFile(
+    @Auth() auth: AuthDto,
+    @Query() dto: FileUploadDto,
+    @Req() request: Request,
+  ): Promise<FileEntryResponseDto> {
+    // The request itself is the content. No body parser claims application/octet-stream, so it
+    // arrives unconsumed and can be streamed straight through to the adapter.
+    const entry = await this.service.writeFile(auth.user.id, dto.volumeId, dto.path, request, {
+      overwrite: dto.overwrite,
+    });
+
+    return { ...entry };
   }
 
   @Get('download')

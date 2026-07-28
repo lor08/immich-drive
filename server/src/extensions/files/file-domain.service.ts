@@ -80,6 +80,22 @@ export class FileDomainService {
     return this.locks.withPathLock(volumeId, path, () => adapter.createDirectory(path));
   }
 
+  /**
+   * Writes one file, holding the path lock so two replicas cannot publish different content at the
+   * same target.
+   */
+  async writeFile(
+    ownerId: string,
+    volumeId: string,
+    path: string,
+    content: AsyncIterable<Uint8Array>,
+    options?: StorageWriteOptions,
+  ): Promise<FileEntry> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+
+    return this.locks.withPathLock(volumeId, path, () => adapter.write(path, content, options));
+  }
+
   async openEntry(
     ownerId: string,
     volumeId: string,

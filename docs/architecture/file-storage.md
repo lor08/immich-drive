@@ -82,6 +82,7 @@ Requirements:
 - Reject symbolic links; the final target and every intermediate component must remain inside the volume root, verified through open descriptors rather than by string comparison.
 - Use collision-safe behavior and never silently overwrite unless the operation explicitly requests replacement.
 - Keep service directories outside the browsable tree so they never appear in listings, exports, or backups of user content.
+- Stage every write in the volume's `.tmp`, flush it, then rename into place. The staging directory is a sibling of the browsable tree, so partial content is never addressable, and it must sit on the same filesystem or the rename cannot be atomic — which the adapter refuses at construction rather than discovering later.
 - Validate at startup that no managed root overlaps an Immich upload or library path, in either direction, comparing canonical paths so a symbolic link cannot defeat the check.
 
 The managed root comes from `IMMICH_DRIVE_ROOT`. **The file domain is opt-in**: with the variable unset the domain is disabled and the server behaves exactly like upstream Immich, which is what keeps an upgrade reversible by configuration alone. With it set, an unusable or overlapping root fails startup with an operator-facing error rather than failing at first write.

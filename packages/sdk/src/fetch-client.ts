@@ -4822,6 +4822,28 @@ export function reassignFacesById({ id, faceDto }: {
     })));
 }
 /**
+ * Upload a file
+ */
+export function uploadFile({ overwrite, path, volumeId, body }: {
+    overwrite?: string;
+    path: string;
+    volumeId: string;
+    body: Blob;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileEntryResponseDto;
+    }>(`/files/content${QS.query(QS.explode({
+        overwrite,
+        path,
+        volumeId
+    }))}`, {
+        ...opts,
+        method: "PUT",
+        body
+    }));
+}
+/**
  * Download a file
  */
 export function downloadFile({ path, volumeId }: {
@@ -7299,6 +7321,7 @@ export enum Permission {
     FileRead = "file.read",
     FileDownload = "file.download",
     FileCreate = "file.create",
+    FileUpload = "file.upload",
     FolderRead = "folder.read",
     JobCreate = "job.create",
     JobRead = "job.read",

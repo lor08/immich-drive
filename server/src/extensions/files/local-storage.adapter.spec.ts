@@ -19,6 +19,8 @@ const readAll = async (content: AsyncIterable<Uint8Array>): Promise<Buffer> => {
 
 const testContent = Readable.from([Uint8Array.from([1])]);
 
+const asContent = (value: string): AsyncIterable<Uint8Array> => Readable.from([Buffer.from(value)]);
+
 // The adapter only supports platforms exposing descriptors through this directory.
 const descriptorDirectory = process.platform === 'darwin' ? '/dev/fd' : '/proc/self/fd';
 
@@ -252,6 +254,132 @@ describe(LocalStorageAdapter.name, () => {
 
     await expect(readAll(content)).rejects.toMatchObject({
       code: LocalStorageErrorCode.SymlinkNotAllowed,
+    });
+  });
+
+  describe('write', () => {
+    let staging: string;
+    let writable: LocalStorageAdapter;
+
+    beforeEach(async () => {
+      staging = path.join(workspace, 'staging');
+      await fs.mkdir(staging);
+      writable = await LocalStorageAdapter.create(root, staging);
+    });
+
+    it('writes a file and reports it', async () => {
+      const entry = await writable.write('/report.txt', asContent('contents'));
+
+      expect(entry).toMatchObject({ path: '/report.txt', name: 'report.txt', type: FileEntryType.File, size: 8 });
+      await expect(fs.readFile(path.join(root, 'report.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('leaves nothing in staging after success', async () => {
+      await writable.write('/report.txt', asContent('contents'));
+
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('creates the file owner-only', async () => {
+      await writable.write('/report.txt', asContent('contents'));
+
+      const { mode } = await fs.stat(path.join(root, 'report.txt'));
+
+      expect(mode & 0o777).toBe(0o600);
+    });
+
+    it('refuses an existing file unless overwrite is set', async () => {
+      await writable.write('/report.txt', asContent('first'));
+
+      await expect(writable.write('/report.txt', asContent('second'))).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+      await expect(fs.readFile(path.join(root, 'report.txt'), 'utf8')).resolves.toBe('first');
+    });
+
+    it('replaces an existing file when overwrite is set', async () => {
+      await writable.write('/report.txt', asContent('first'));
+
+      await writable.write('/report.txt', asContent('second'), { overwrite: true });
+
+      await expect(fs.readFile(path.join(root, 'report.txt'), 'utf8')).resolves.toBe('second');
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('refuses to overwrite a directory', async () => {
+      await fs.mkdir(path.join(root, 'documents'));
+
+      await expect(writable.write('/documents', asContent('x'), { overwrite: true })).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+    });
+
+    it('leaves no partial file and no staging file when the content fails mid-stream', async () => {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      const failing = (async function* () {
+        yield Buffer.from('partial');
+        throw new Error('client went away');
+      })();
+
+      await expect(writable.write('/report.txt', failing)).rejects.toThrow('client went away');
+
+      await expect(fs.readdir(root)).resolves.toEqual([]);
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('does not write when the parent is missing', async () => {
+      await expect(writable.write('/missing/report.txt', asContent('x'))).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(root)).resolves.toEqual([]);
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it.each(['relative', '/', '/a/../escape', '/nul\0byte'])(
+      'refuses the path %j without touching either directory',
+      async (badPath) => {
+        await expect(writable.write(badPath, asContent('x'))).rejects.toBeInstanceOf(LocalStorageAdapterError);
+
+        await expect(fs.readdir(root)).resolves.toEqual([]);
+        await expect(fs.readdir(staging)).resolves.toEqual([]);
+      },
+    );
+
+    it('refuses to write through a symlinked parent', async () => {
+      const outside = path.join(workspace, 'outside');
+      await fs.mkdir(outside);
+      await fs.symlink(outside, path.join(root, 'escape'));
+
+      await expect(writable.write('/escape/report.txt', asContent('x'))).rejects.toMatchObject({
+        code: LocalStorageErrorCode.SymlinkNotAllowed,
+      });
+
+      await expect(fs.readdir(outside)).resolves.toEqual([]);
+    });
+
+    it('refuses a staging directory on another filesystem', async () => {
+      // /dev/shm is a separate tmpfs, so an atomic rename into the root is impossible.
+      const otherFilesystem = '/dev/shm';
+      const rootStats = await fs.stat(root, { bigint: true });
+      const available = await fs
+        .stat(otherFilesystem, { bigint: true })
+        .then((stats) => stats.dev !== rootStats.dev)
+        .catch(() => false);
+
+      if (!available) {
+        return;
+      }
+
+      await expect(LocalStorageAdapter.create(root, otherFilesystem)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidRoot,
+      });
+    });
+
+    it('refuses to write at all without a staging directory', async () => {
+      await expect(adapter.write('/report.txt', asContent('x'))).rejects.toMatchObject({
+        code: LocalStorageErrorCode.UnsupportedOperation,
+      });
     });
   });
 
