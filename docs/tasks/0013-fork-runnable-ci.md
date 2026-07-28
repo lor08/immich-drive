@@ -10,7 +10,7 @@ This versioned file is the source of truth for stable scope and acceptance crite
 
 ## Status
 
-Implementation in review.
+Done. Merged in PR #31, and proven on that pull request itself: editing a workflow forces every path filter on, so all three jobs ran. `Lint Web` passed on a hosted runner, Dart analysis passed without the licensed step, and the Android build was skipped instead of queueing.
 
 ## Problem
 
@@ -52,13 +52,13 @@ The seam inventory entries for these three files are added by PR #29 rather than
 
 ## Acceptance criteria
 
-- [ ] No inherited job can queue forever in this fork.
-- [ ] `Lint Web` produces a real result on web and SDK changes.
-- [ ] Dart analysis still runs, minus the licensed portion.
-- [ ] The Android job is skipped rather than failing, with its reason in the workflow.
+- [x] No inherited job can queue forever in this fork.
+- [x] `Lint Web` produces a real result on web and SDK changes.
+- [x] Dart analysis still runs, minus the licensed portion.
+- [x] The Android job is skipped rather than failing, with its reason in the workflow.
 - [ ] Upstream behaviour is unchanged when these workflows run in `immich-app/immich`.
-- [ ] Zizmor and the other inherited checks pass.
-- [ ] The three workflows are recorded in the seam inventory by PR #29.
+- [x] Zizmor and the other inherited checks pass.
+- [x] The three workflows are recorded in the seam inventory by PR #29.
 
 ## Non-goals
 

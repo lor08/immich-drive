@@ -6280,6 +6280,50 @@
         "x-immich-state": "Stable"
       }
     },
+    "/files/volumes": {
+      "get": {
+        "description": "Lists the volumes the current user can address. Content is addressed by volume identifier and a path relative to that volume.",
+        "operationId": "getFileVolumes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FileVolumeResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List file volumes",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.read"
+      }
+    },
     "/jobs": {
       "get": {
         "deprecated": true,
@@ -16290,6 +16334,10 @@
       "description": "A face is a detected human face within an asset, which can be associated with a person. Faces are normally detected via machine learning, but can also be created manually."
     },
     {
+      "name": "Files",
+      "description": "A file volume is a tree of arbitrary files and folders managed by Immich Drive."
+    },
+    {
       "name": "Integrity (admin)",
       "description": "Endpoints for viewing and managing integrity reports."
     },
@@ -19125,6 +19173,47 @@
         ],
         "type": "object"
       },
+      "FileVolumeAccess": {
+        "description": "Volume access mode",
+        "enum": [
+          "read-only",
+          "read-write"
+        ],
+        "type": "string"
+      },
+      "FileVolumeKind": {
+        "description": "Volume kind",
+        "enum": [
+          "private",
+          "shared"
+        ],
+        "type": "string"
+      },
+      "FileVolumeResponseDto": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/FileVolumeAccess"
+          },
+          "id": {
+            "description": "Stable volume identifier used to address content",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FileVolumeKind"
+          },
+          "name": {
+            "description": "Display name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access",
+          "id",
+          "kind",
+          "name"
+        ],
+        "type": "object"
+      },
       "FoldersResponse": {
         "properties": {
           "enabled": {
@@ -20932,6 +21021,7 @@
           "face.read",
           "face.update",
           "face.delete",
+          "file.read",
           "folder.read",
           "job.create",
           "job.read",

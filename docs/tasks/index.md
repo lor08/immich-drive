@@ -34,8 +34,9 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0008-storage-root-config.md`    | `P1-03`    | Storage-root configuration             | Done       | #22   | #23          | Opt-in via `IMMICH_DRIVE_ROOT`; overlap with Immich media paths fails startup.             |
 | `0009-migration-architecture.md` | `P0-04`    | Migration and rollback architecture    | Done       | #9    | —            | ADR 0009: in-place image swap, opt-in domain. Implementation deferred to `P1-04`.          |
 | `0010-release-architecture.md`   | `P0-05`    | Release and publication architecture   | Done       | #11   | —            | ADR 0010: GHCR only, renamed image, no fork-built ML. Workflow work split out as `P0-13`.  |
-| `0013-fork-runnable-ci.md`       | `P0-14`    | Runnable inherited validation          | Active     | #30   | —            | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever. |
-| `0011-volume-model.md`           | `P1-16`    | Volume and path namespace model        | Active     | #26   | —            | Private volume per owner plus one configured shared space; adapter confined to `files/`.   |
+| `0011-volume-model.md`           | `P1-16`    | Volume and path namespace model        | Done       | #26   | #27          | Private volume per owner plus one configured shared space; adapter confined to `files/`.   |
+| `0012-volume-discovery.md`       | `P1-08`    | Volume discovery and registration      | Active     | #28   | —            | First upstream seam taken on; folder listing and creation split out as `P1-18`.            |
+| `0013-fork-runnable-ci.md`       | `P0-14`    | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever. |
 
 ## Promotable work with accepted decisions and no Issue yet
 
@@ -54,7 +55,7 @@ These items are defined by an accepted ADR and may be promoted without further d
 
 ## Next recommended sequence
 
-1. Promote `P1-16` volumes and `P1-17` advisory locking, then the filesystem-only browse and write slices `P1-08` through `P1-10`.
+1. Finish `P1-08` volume discovery, then `P1-18` folder listing and creation, `P1-17` advisory locking, and the write slices `P1-09` and `P1-10`.
 2. Promote `P2-01` and `P2-02` so the first slice is usable in the web client.
 3. Deliver `P1-04` schema together with `P1-06` reconciliation. ADR 0009 already fixes the migration and rollback rules, so this is where the documented downgrade procedure and the upgrade fixture test become due.
 4. Run `P0-13` before publishing anything, so no build can push under an upstream name.

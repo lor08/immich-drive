@@ -106,6 +106,12 @@ String parameterToString(dynamic value) {
   if (value is Colorspace) {
     return ColorspaceTypeTransformer().encode(value).toString();
   }
+  if (value is FileVolumeAccess) {
+    return FileVolumeAccessTypeTransformer().encode(value).toString();
+  }
+  if (value is FileVolumeKind) {
+    return FileVolumeKindTypeTransformer().encode(value).toString();
+  }
   if (value is HlsVideoResolution) {
     return HlsVideoResolutionTypeTransformer().encode(value).toString();
   }
