@@ -75,7 +75,7 @@ Sequencing note: browse and write capabilities are delivered on the filesystem a
 - **P1-07 — Ownership and authorization model — Backlog.** Define owner, administrator, service, and future share permissions; centralize checks for every file operation. Drive permissions use the `file.*` namespace, since `Permission` already contains an upstream `FolderRead`.
 - **P1-08 — Volume discovery and module registration — Done.** One authenticated endpoint listing the caller's volumes, plus the module registration that serves it. This is the first upstream seam the fork takes on, recorded in the seam inventory. Delivered by PR #29.
 - **P1-18 — Folder listing API — Done.** Lists folder contents and maps domain errors onto status codes a client can act on. Delivered by PR #33.
-- **P1-19 — Folder creation API — Ready.** Create directories atomically with naming rules, collision behaviour, and the adapter's first write path. Split out of `P1-18` so the first mutation gets the isolated review the read-only adapter received.
+- **P1-19 — Folder creation API — Active.** Descriptor-relative, non-recursive directory creation under the path lock, with conflicts reported as `409`. Tracked by Issue #42.
 - **P1-09 — Atomic upload pipeline — Backlog.** Stream uploads to temporary files, enforce limits, fsync where appropriate, finalize atomically, clean failures, and reconcile metadata.
 - **P1-10 — Authenticated download API — Done.** Streams whole files from the adapter rather than by host path, with a separate `file.download` permission and an unconditional octet-stream type. Ranges stay with `P3-03`. Delivered by PR #39.
 - **P1-11 — Rename, move, and copy semantics — Backlog.** Same-volume moves must be `rename(2)`. Cross-volume moves are detected through filesystem identity and rejected explicitly until a resumable transfer job exists. Define collision handling, metadata updates, cancellation, and recovery.
@@ -84,7 +84,7 @@ Sequencing note: browse and write capabilities are delivered on the filesystem a
 - **P1-14 — Audit and operational events — Backlog.** Record security-relevant mutations, reconciliation failures, storage health, and administrative actions.
 - **P1-15 — Core integration and security tests — Backlog.** Prove cross-user isolation, path safety, interrupted-write recovery, database/filesystem consistency, and normal filesystem readability.
 - **P1-16 — Volume and path namespace model — Done.** Implement the volume abstraction from [ADR 0004](../adr/0004-volume-path-model.md): a private volume per user, one configuration-defined shared space, service directories outside the browsable tree, per-volume root identity, and an API addressed by volume plus relative path. The registry is configuration-driven until `P1-04` moves it into the schema. Delivered by PR #27.
-- **P1-17 — Concurrency primitives — Active.** PostgreSQL advisory locking keyed by normalised volume and path, in the two-argument lock space so it cannot collide with Immich's own keys. Tracked by Issue #40.
+- **P1-17 — Concurrency primitives — Done.** PostgreSQL advisory locking keyed by normalised volume and path, in the two-argument lock space so it cannot collide with Immich's own keys. Delivered by PR #41.
 
 ### Exit gate
 

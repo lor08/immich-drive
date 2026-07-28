@@ -391,6 +391,8 @@ class ApiClient {
           return FileEntryResponseDto.fromJson(value);
         case 'FileEntryType':
           return FileEntryTypeTypeTransformer().decode(value);
+        case 'FileFolderCreateDto':
+          return FileFolderCreateDto.fromJson(value);
         case 'FileVolumeAccess':
           return FileVolumeAccessTypeTransformer().decode(value);
         case 'FileVolumeKind':

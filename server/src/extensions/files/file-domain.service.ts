@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { FileEntry, FileEntryType } from 'src/extensions/files/file-entry';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
+import { PathLock } from 'src/extensions/files/path-lock';
 import { StorageDeleteOptions, StorageRange, StorageWriteOptions } from 'src/extensions/files/storage.adapter';
 import { Volume } from 'src/extensions/files/volume';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
@@ -13,7 +14,10 @@ import { VolumeRegistry } from 'src/extensions/files/volume.registry';
  */
 @Injectable()
 export class FileDomainService {
-  constructor(@Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null) {}
+  constructor(
+    @Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null,
+    private readonly locks: PathLock,
+  ) {}
 
   /**
    * The registry exists only when the domain is configured. Every entry point goes through here so
@@ -64,6 +68,16 @@ export class FileDomainService {
     }
 
     return { entry, content: await adapter.open(path) };
+  }
+
+  /**
+   * Creates one folder, holding the path lock for the duration so two replicas cannot race on the
+   * same target.
+   */
+  async createFolder(ownerId: string, volumeId: string, path: string): Promise<FileEntry> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+
+    return this.locks.withPathLock(volumeId, path, () => adapter.createDirectory(path));
   }
 
   async openEntry(

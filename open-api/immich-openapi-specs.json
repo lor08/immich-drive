@@ -6405,6 +6405,57 @@
         "x-immich-permission": "file.read"
       }
     },
+    "/files/folders": {
+      "post": {
+        "description": "Creates one folder inside a volume. The parent must already exist: creation is not recursive, so a mistyped path fails rather than materialising a hierarchy.",
+        "operationId": "createFileFolder",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileFolderCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntryResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create a folder",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.create"
+      }
+    },
     "/files/volumes": {
       "get": {
         "description": "Lists the volumes the current user can address. Content is addressed by volume identifier and a path relative to that volume.",
@@ -19342,6 +19393,23 @@
         ],
         "type": "string"
       },
+      "FileFolderCreateDto": {
+        "properties": {
+          "path": {
+            "description": "Virtual path of the folder to create. The parent must already exist.",
+            "type": "string"
+          },
+          "volumeId": {
+            "description": "Volume to create the folder in",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "volumeId"
+        ],
+        "type": "object"
+      },
       "FileVolumeAccess": {
         "description": "Volume access mode",
         "enum": [
@@ -21192,6 +21260,7 @@
           "face.delete",
           "file.read",
           "file.download",
+          "file.create",
           "folder.read",
           "job.create",
           "job.read",

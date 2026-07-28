@@ -44,6 +44,13 @@ const FileDownloadSchema = z
   })
   .meta({ id: 'FileDownloadDto' });
 
+const FileFolderCreateSchema = z
+  .object({
+    volumeId: z.string().describe('Volume to create the folder in'),
+    path: z.string().describe('Virtual path of the folder to create. The parent must already exist.'),
+  })
+  .meta({ id: 'FileFolderCreateDto' });
+
 const FileEntryListSchema = z
   .object({
     volumeId: z.string().describe('Volume to list, as returned by the volume endpoint'),
@@ -54,3 +61,4 @@ const FileEntryListSchema = z
 export class FileEntryResponseDto extends createZodDto(FileEntrySchema) {}
 export class FileEntryListDto extends createZodDto(FileEntryListSchema) {}
 export class FileDownloadDto extends createZodDto(FileDownloadSchema) {}
+export class FileFolderCreateDto extends createZodDto(FileFolderCreateSchema) {}

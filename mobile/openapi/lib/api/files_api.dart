@@ -16,6 +16,63 @@ class FilesApi {
 
   final ApiClient apiClient;
 
+  /// Create a folder
+  ///
+  /// Creates one folder inside a volume. The parent must already exist: creation is not recursive, so a mistyped path fails rather than materialising a hierarchy.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [FileFolderCreateDto] fileFolderCreateDto (required):
+  Future<Response> createFileFolderWithHttpInfo(FileFolderCreateDto fileFolderCreateDto, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/folders';
+
+    // ignore: prefer_final_locals
+    Object? postBody = fileFolderCreateDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Create a folder
+  ///
+  /// Creates one folder inside a volume. The parent must already exist: creation is not recursive, so a mistyped path fails rather than materialising a hierarchy.
+  ///
+  /// Parameters:
+  ///
+  /// * [FileFolderCreateDto] fileFolderCreateDto (required):
+  Future<FileEntryResponseDto?> createFileFolder(FileFolderCreateDto fileFolderCreateDto, { Future<void>? abortTrigger, }) async {
+    final response = await createFileFolderWithHttpInfo(fileFolderCreateDto, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileEntryResponseDto',) as FileEntryResponseDto;
+    
+    }
+    return null;
+  }
+
   /// Download a file
   ///
   /// Streams a file from a volume. Whole files only; range requests are not supported yet.

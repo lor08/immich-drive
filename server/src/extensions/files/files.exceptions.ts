@@ -1,4 +1,10 @@
-import { BadRequestException, HttpException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
 import { VolumeError, VolumeErrorCode } from 'src/extensions/files/volume';
 
@@ -16,6 +22,10 @@ const STORAGE_STATUS: Record<LocalStorageErrorCode, (message: string) => HttpExc
   [LocalStorageErrorCode.EntryNotFile]: (message) => new BadRequestException(message),
   [LocalStorageErrorCode.RangeNotSatisfiable]: (message) => new BadRequestException(message),
   [LocalStorageErrorCode.EntryNotFound]: (message) => new NotFoundException(message),
+
+  // Something is already there. The caller can resolve it by choosing another name, which makes it a
+  // conflict rather than a bad request.
+  [LocalStorageErrorCode.EntryExists]: (message) => new ConflictException(message),
 
   // A changed entry means the filesystem moved under a validated path. It is not the caller's
   // mistake and it is not necessarily a fault either, so it stays a server error the caller retries.

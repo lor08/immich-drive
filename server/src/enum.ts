@@ -170,6 +170,7 @@ export enum Permission {
 
   FileRead = 'file.read',
   FileDownload = 'file.download',
+  FileCreate = 'file.create',
 
   FolderRead = 'folder.read',
 

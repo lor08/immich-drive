@@ -1215,6 +1215,12 @@ export type FileEntryResponseDto = {
     size: number;
     "type": FileEntryType;
 };
+export type FileFolderCreateDto = {
+    /** Virtual path of the folder to create. The parent must already exist. */
+    path: string;
+    /** Volume to create the folder in */
+    volumeId: string;
+};
 export type FileVolumeResponseDto = {
     access: FileVolumeAccess;
     /** Stable volume identifier used to address content */
@@ -4850,6 +4856,21 @@ export function getFileEntries({ path, volumeId }: {
     }));
 }
 /**
+ * Create a folder
+ */
+export function createFileFolder({ fileFolderCreateDto }: {
+    fileFolderCreateDto: FileFolderCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: FileEntryResponseDto;
+    }>("/files/folders", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileFolderCreateDto
+    })));
+}
+/**
  * List file volumes
  */
 export function getFileVolumes(opts?: Oazapfts.RequestOpts) {
@@ -7277,6 +7298,7 @@ export enum Permission {
     FaceDelete = "face.delete",
     FileRead = "file.read",
     FileDownload = "file.download",
+    FileCreate = "file.create",
     FolderRead = "folder.read",
     JobCreate = "job.create",
     JobRead = "job.read",
