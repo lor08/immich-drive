@@ -21,6 +21,7 @@ These are live. Every entry was added by a pull request that explains why the ed
 | `server/src/services/server.service.spec.ts`                           | `P2-01`     | The upstream spec asserts the exact feature object with `toEqual`, so the new field has to appear there too.                    |
 | `web/src/lib/route.ts`                                                 | `P2-01`     | `Route.files()` beside the existing route builders.                                                                             |
 | `web/src/lib/components/shared-components/side-bar/UserSidebar.svelte` | `P2-01`     | One navigation entry gated on the feature flag, plus two icon imports.                                                          |
+| `e2e/src/specs/server/api/server.e2e-spec.ts`                          | `P2-01`     | The end-to-end spec also asserts the exact feature object, so the new field appears there too.                                  |
 | `i18n/en.json`                                                         | `P2-01`     | One translation key. Weblate owns every other locale.                                                                           |
 
 The three workflow edits are gated on `github.repository_owner == 'immich-app'`, so upstream behaviour is unchanged and an upstream synchronisation sees a one-line textual conflict rather than a semantic one.
@@ -34,7 +35,9 @@ Generated artifacts regenerated alongside them: `open-api/immich-openapi-specs.j
 The inventory is larger than six because it also carries work the spike did not model:
 
 - three workflow files, from repairing inherited validation that cannot run in a fork (`P0-14`);
-- three server files, from the feature flag that hides the navigation entry when the domain is disabled (`P2-01`), which the spike's slice did not have.
+- four server and end-to-end files, from the feature flag that hides the navigation entry when the domain is disabled (`P2-01`), which the spike's slice did not have.
+
+A feature flag costs more than it looks. Immich asserts the exact feature object in two places, a unit spec and an end-to-end spec, and CI guards newly-required response fields with a mobile test demanding either a backward-compatibility patch or an optional field. All three obligations surfaced in CI rather than in review. The flag was declared optional for that reason, which also gives the honest default: a client that has never heard of Drive treats an absent field as off. Anyone adding a second flag should expect the same three obligations.
 
 The estimate therefore held for what it measured. What it did not measure was the cost of being a fork at all, and the cost of keeping the promise that a disabled deployment looks untouched.
 

@@ -17,7 +17,7 @@ class ServerFeaturesDto {
     required this.duplicateDetection,
     required this.email,
     required this.facialRecognition,
-    required this.files,
+    this.files = const Optional.absent(),
     required this.importFaces,
     required this.map,
     required this.oauth,
@@ -45,7 +45,13 @@ class ServerFeaturesDto {
   bool facialRecognition;
 
   /// Whether Immich Drive file storage is enabled
-  bool files;
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Optional<bool?> files;
 
   /// Whether face import is enabled
   bool importFaces;
@@ -110,7 +116,7 @@ class ServerFeaturesDto {
     (duplicateDetection.hashCode) +
     (email.hashCode) +
     (facialRecognition.hashCode) +
-    (files.hashCode) +
+    (files == null ? 0 : files!.hashCode) +
     (importFaces.hashCode) +
     (map.hashCode) +
     (oauth.hashCode) +
@@ -133,7 +139,10 @@ class ServerFeaturesDto {
       json[r'duplicateDetection'] = this.duplicateDetection;
       json[r'email'] = this.email;
       json[r'facialRecognition'] = this.facialRecognition;
-      json[r'files'] = this.files;
+    if (this.files.isPresent) {
+      final value = this.files.value;
+      json[r'files'] = value;
+    }
       json[r'importFaces'] = this.importFaces;
       json[r'map'] = this.map;
       json[r'oauth'] = this.oauth;
@@ -162,7 +171,7 @@ class ServerFeaturesDto {
         duplicateDetection: mapValueOfType<bool>(json, r'duplicateDetection')!,
         email: mapValueOfType<bool>(json, r'email')!,
         facialRecognition: mapValueOfType<bool>(json, r'facialRecognition')!,
-        files: mapValueOfType<bool>(json, r'files')!,
+        files: json.containsKey(r'files') ? Optional.present(mapValueOfType<bool>(json, r'files')) : const Optional.absent(),
         importFaces: mapValueOfType<bool>(json, r'importFaces')!,
         map: mapValueOfType<bool>(json, r'map')!,
         oauth: mapValueOfType<bool>(json, r'oauth')!,
@@ -226,7 +235,6 @@ class ServerFeaturesDto {
     'duplicateDetection',
     'email',
     'facialRecognition',
-    'files',
     'importFaces',
     'map',
     'oauth',
