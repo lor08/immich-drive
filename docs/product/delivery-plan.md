@@ -100,8 +100,8 @@ Goal: make the Phase 1 capabilities usable through the existing Immich web appli
 
 ### Tasks
 
-- **P2-01 — Web integration seam and Files navigation — Active.** Isolated route and feature directory, navigation entry gated on a new server feature flag so a disabled deployment looks untouched, and the web seams the `P0-12` spike predicted. Tracked by Issue #34.
-- **P2-02 — Folder browser — Backlog.** Implement breadcrumbs, sorting, pagination or virtualization, selection, empty/loading/error states, and refresh behavior.
+- **P2-01 — Web integration seam and Files navigation — Done.** Isolated route and feature directory, navigation entry gated on a new server feature flag so a disabled deployment looks untouched, and the web seams the `P0-12` spike predicted. Delivered by PR #35.
+- **P2-02 — Folder browser — Active.** Breadcrumbs, folder navigation, empty and error states, with only folders interactive until a download endpoint exists. Sorting, pagination, and selection stay out until there is content that needs them. Tracked by Issue #36.
 - **P2-03 — Upload queue — Backlog.** Add drag-and-drop, picker uploads, progress, cancellation, retry, collision choices, and navigation-safe background state.
 - **P2-04 — File and folder actions — Backlog.** Create folder, download, rename, move, copy, trash, restore, and permanent delete with confirmation and conflict UX.
 - **P2-05 — Baseline previews — Backlog.** Provide safe image, text, PDF, audio, and video previews where browsers support them without introducing premature transcoding.
