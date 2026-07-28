@@ -61,6 +61,7 @@ enum Permission {
   facePeriodUpdate._(r'face.update'),
   facePeriodDelete._(r'face.delete'),
   filePeriodRead._(r'file.read'),
+  filePeriodDownload._(r'file.download'),
   folderPeriodRead._(r'folder.read'),
   jobPeriodCreate._(r'job.create'),
   jobPeriodRead._(r'job.read'),
@@ -276,6 +277,7 @@ class PermissionTypeTransformer {
         case r'face.update': return Permission.facePeriodUpdate;
         case r'face.delete': return Permission.facePeriodDelete;
         case r'file.read': return Permission.filePeriodRead;
+        case r'file.download': return Permission.filePeriodDownload;
         case r'folder.read': return Permission.folderPeriodRead;
         case r'job.create': return Permission.jobPeriodCreate;
         case r'job.read': return Permission.jobPeriodRead;

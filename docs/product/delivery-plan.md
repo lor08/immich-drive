@@ -77,7 +77,7 @@ Sequencing note: browse and write capabilities are delivered on the filesystem a
 - **P1-18 — Folder listing API — Done.** Lists folder contents and maps domain errors onto status codes a client can act on. Delivered by PR #33.
 - **P1-19 — Folder creation API — Ready.** Create directories atomically with naming rules, collision behaviour, and the adapter's first write path. Split out of `P1-18` so the first mutation gets the isolated review the read-only adapter received.
 - **P1-09 — Atomic upload pipeline — Backlog.** Stream uploads to temporary files, enforce limits, fsync where appropriate, finalize atomically, clean failures, and reconcile metadata.
-- **P1-10 — Authenticated download API — Backlog.** Stream files without loading them into memory; implement safe content disposition and authorization.
+- **P1-10 — Authenticated download API — Active.** Streams whole files from the adapter rather than by host path, with a separate `file.download` permission and an unconditional octet-stream type. Ranges stay with `P3-03`. Tracked by Issue #38.
 - **P1-11 — Rename, move, and copy semantics — Backlog.** Same-volume moves must be `rename(2)`. Cross-volume moves are detected through filesystem identity and rejected explicitly until a resumable transfer job exists. Define collision handling, metadata updates, cancellation, and recovery.
 - **P1-12 — Trash, restore, and permanent deletion — Backlog.** Soft delete moves content into the trash directory of the same volume with a sidecar manifest, so deletion never becomes a cross-filesystem copy. Define retention, restore collisions, administrator purge, and reconciliation.
 - **P1-13 — Checksums and integrity state — Backlog.** Add incremental hashing, corruption detection, duplicate hints, and repair status without blocking ordinary file access.
@@ -101,7 +101,7 @@ Goal: make the Phase 1 capabilities usable through the existing Immich web appli
 ### Tasks
 
 - **P2-01 — Web integration seam and Files navigation — Done.** Isolated route and feature directory, navigation entry gated on a new server feature flag so a disabled deployment looks untouched, and the web seams the `P0-12` spike predicted. Delivered by PR #35.
-- **P2-02 — Folder browser — Active.** Breadcrumbs, folder navigation, empty and error states, with only folders interactive until a download endpoint exists. Sorting, pagination, and selection stay out until there is content that needs them. Tracked by Issue #36.
+- **P2-02 — Folder browser — Done.** Breadcrumbs, folder navigation, empty and error states, with only folders interactive until a download endpoint exists. Sorting, pagination, and selection stay out until there is content that needs them. Delivered by PR #37.
 - **P2-03 — Upload queue — Backlog.** Add drag-and-drop, picker uploads, progress, cancellation, retry, collision choices, and navigation-safe background state.
 - **P2-04 — File and folder actions — Backlog.** Create folder, download, rename, move, copy, trash, restore, and permanent delete with confirmation and conflict UX.
 - **P2-05 — Baseline previews — Backlog.** Provide safe image, text, PDF, audio, and video previews where browsers support them without introducing premature transcoding.

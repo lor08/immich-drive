@@ -6280,6 +6280,67 @@
         "x-immich-state": "Stable"
       }
     },
+    "/files/download": {
+      "get": {
+        "description": "Streams a file from a volume. Whole files only; range requests are not supported yet.",
+        "operationId": "downloadFile",
+        "parameters": [
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "description": "Virtual path of the file, relative to the volume root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Volume holding the file",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Download a file",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.download"
+      }
+    },
     "/files/entries": {
       "get": {
         "description": "Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.",
@@ -21130,6 +21191,7 @@
           "face.update",
           "face.delete",
           "file.read",
+          "file.download",
           "folder.read",
           "job.create",
           "job.read",

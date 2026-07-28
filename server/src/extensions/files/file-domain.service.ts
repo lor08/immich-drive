@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { FileEntry } from 'src/extensions/files/file-entry';
+import { FileEntry, FileEntryType } from 'src/extensions/files/file-entry';
+import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
 import { StorageDeleteOptions, StorageRange, StorageWriteOptions } from 'src/extensions/files/storage.adapter';
 import { Volume } from 'src/extensions/files/volume';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
@@ -40,6 +41,29 @@ export class FileDomainService {
   async listEntries(ownerId: string, volumeId: string, path: string): Promise<readonly FileEntry[]> {
     const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
     return adapter.list(path);
+  }
+
+  /**
+   * Resolves an entry and opens it in one step, so a caller streaming a file cannot end up describing
+   * one entry while reading another.
+   */
+  async openFile(
+    ownerId: string,
+    volumeId: string,
+    path: string,
+  ): Promise<{ entry: FileEntry; content: AsyncIterable<Uint8Array> }> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+
+    const entry = await adapter.stat(path);
+    if (!entry) {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Storage entry does not exist');
+    }
+
+    if (entry.type !== FileEntryType.File) {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFile, 'Storage entry is not a regular file');
+    }
+
+    return { entry, content: await adapter.open(path) };
   }
 
   async openEntry(
