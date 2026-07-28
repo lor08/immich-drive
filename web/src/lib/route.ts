@@ -66,6 +66,9 @@ export const Route = {
   explore: () => '/explore',
   places: () => '/places',
 
+  // files
+  files: (params?: { volumeId?: string; path?: string }) => '/files' + asQueryString(params),
+
   // folders
   folders: (params?: { path?: string }) => '/folders' + asQueryString(params),
 

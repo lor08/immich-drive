@@ -22747,6 +22747,10 @@
             "description": "Whether facial recognition is enabled",
             "type": "boolean"
           },
+          "files": {
+            "description": "Whether Immich Drive file storage is enabled",
+            "type": "boolean"
+          },
           "importFaces": {
             "description": "Whether face import is enabled",
             "type": "boolean"
@@ -22801,6 +22805,7 @@
           "duplicateDetection",
           "email",
           "facialRecognition",
+          "files",
           "importFaces",
           "map",
           "oauth",
