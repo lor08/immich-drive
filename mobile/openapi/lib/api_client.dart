@@ -387,6 +387,10 @@ class ApiClient {
           return FaceDto.fromJson(value);
         case 'FacialRecognitionConfig':
           return FacialRecognitionConfig.fromJson(value);
+        case 'FileEntryResponseDto':
+          return FileEntryResponseDto.fromJson(value);
+        case 'FileEntryType':
+          return FileEntryTypeTypeTransformer().decode(value);
         case 'FileVolumeAccess':
           return FileVolumeAccessTypeTransformer().decode(value);
         case 'FileVolumeKind':

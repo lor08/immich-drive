@@ -86,6 +86,24 @@ describe(FilesController.name, () => {
     expect(JSON.stringify(response)).not.toContain('/data/drive');
   });
 
+  it('lists folder entries for the authenticated user', async () => {
+    const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-entries-'));
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }));
+    const [volume] = await service.listVolumes(OWNER);
+    await fs.mkdir(path.join(volume.filesPath, 'documents'));
+    await fs.writeFile(path.join(volume.filesPath, 'documents', 'report.txt'), 'contents');
+
+    const response = await new FilesController(service).getFileEntries(asAuth(OWNER), {
+      volumeId: PRIVATE_VOLUME_ID,
+      path: '/documents',
+    });
+
+    expect(response).toEqual([expect.objectContaining({ name: 'report.txt', path: '/documents/report.txt', size: 8 })]);
+    expect(JSON.stringify(response)).not.toContain(storageRoot);
+
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  });
+
   it('scopes the listing to the authenticated user', async () => {
     const service = { listVolumes: vi.fn().mockResolvedValue([]) } as unknown as FileDomainService;
 

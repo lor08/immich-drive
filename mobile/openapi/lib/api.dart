@@ -172,6 +172,8 @@ part 'model/email_notifications_update.dart';
 part 'model/exif_response_dto.dart';
 part 'model/face_dto.dart';
 part 'model/facial_recognition_config.dart';
+part 'model/file_entry_response_dto.dart';
+part 'model/file_entry_type.dart';
 part 'model/file_volume_access.dart';
 part 'model/file_volume_kind.dart';
 part 'model/file_volume_response_dto.dart';

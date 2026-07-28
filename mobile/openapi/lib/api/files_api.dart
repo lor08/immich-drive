@@ -16,6 +16,79 @@ class FilesApi {
 
   final ApiClient apiClient;
 
+  /// List entries in a folder
+  ///
+  /// Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume to list, as returned by the volume endpoint
+  ///
+  /// * [String] path:
+  ///   Virtual path of the directory to list, relative to the volume root
+  Future<Response> getFileEntriesWithHttpInfo(String volumeId, { String? path, Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/entries';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (path != null) {
+      queryParams.addAll(_queryParams('', 'path', path));
+    }
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// List entries in a folder
+  ///
+  /// Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume to list, as returned by the volume endpoint
+  ///
+  /// * [String] path:
+  ///   Virtual path of the directory to list, relative to the volume root
+  Future<List<FileEntryResponseDto>?> getFileEntries(String volumeId, { String? path, Future<void>? abortTrigger, }) async {
+    final response = await getFileEntriesWithHttpInfo(volumeId, path: path, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<FileEntryResponseDto>') as List)
+        .cast<FileEntryResponseDto>()
+        .toList(growable: false);
+
+    }
+    return null;
+  }
+
   /// List file volumes
   ///
   /// Lists the volumes the current user can address. Content is addressed by volume identifier and a path relative to that volume.
