@@ -1204,6 +1204,17 @@ export type FaceDto = {
     /** Face ID */
     id: string;
 };
+export type FileEntryResponseDto = {
+    /** Last modification time */
+    modifiedAt: string;
+    /** Base name of the entry */
+    name: string;
+    /** Virtual path of the entry within its volume */
+    path: string;
+    /** Size in bytes as reported by the storage backend */
+    size: number;
+    "type": FileEntryType;
+};
 export type FileVolumeResponseDto = {
     access: FileVolumeAccess;
     /** Stable volume identifier used to address content */
@@ -4803,6 +4814,23 @@ export function reassignFacesById({ id, faceDto }: {
     })));
 }
 /**
+ * List entries in a folder
+ */
+export function getFileEntries({ path, volumeId }: {
+    path?: string;
+    volumeId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileEntryResponseDto[];
+    }>(`/files/entries${QS.query(QS.explode({
+        path,
+        volumeId
+    }))}`, {
+        ...opts
+    }));
+}
+/**
  * List file volumes
  */
 export function getFileVolumes(opts?: Oazapfts.RequestOpts) {
@@ -7380,6 +7408,10 @@ export enum SourceType {
     MachineLearning = "machine-learning",
     Exif = "exif",
     Manual = "manual"
+}
+export enum FileEntryType {
+    File = "file",
+    Directory = "directory"
 }
 export enum FileVolumeAccess {
     ReadOnly = "read-only",

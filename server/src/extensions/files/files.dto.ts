@@ -1,5 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
+import { FileEntryType } from 'src/extensions/files/file-entry';
 import { VolumeAccess, VolumeKind } from 'src/extensions/files/volume';
+import { isoDatetimeToDate } from 'src/validation';
 import z from 'zod';
 
 const VolumeKindSchema = z.enum(VolumeKind).describe('Volume kind').meta({ id: 'FileVolumeKind' });
@@ -21,3 +23,26 @@ const VolumeSchema = z
   .meta({ id: 'FileVolumeResponseDto' });
 
 export class FileVolumeResponseDto extends createZodDto(VolumeSchema) {}
+
+const FileEntryTypeSchema = z.enum(FileEntryType).describe('File entry type').meta({ id: 'FileEntryType' });
+
+/** One entry inside a volume. Paths are virtual and relative to the volume root. */
+const FileEntrySchema = z
+  .object({
+    path: z.string().describe('Virtual path of the entry within its volume'),
+    name: z.string().describe('Base name of the entry'),
+    type: FileEntryTypeSchema,
+    size: z.number().int().describe('Size in bytes as reported by the storage backend'),
+    modifiedAt: isoDatetimeToDate.describe('Last modification time'),
+  })
+  .meta({ id: 'FileEntryResponseDto' });
+
+const FileEntryListSchema = z
+  .object({
+    volumeId: z.string().describe('Volume to list, as returned by the volume endpoint'),
+    path: z.string().default('/').describe('Virtual path of the directory to list, relative to the volume root'),
+  })
+  .meta({ id: 'FileEntryListDto' });
+
+export class FileEntryResponseDto extends createZodDto(FileEntrySchema) {}
+export class FileEntryListDto extends createZodDto(FileEntryListSchema) {}

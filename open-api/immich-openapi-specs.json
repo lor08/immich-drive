@@ -6280,6 +6280,70 @@
         "x-immich-state": "Stable"
       }
     },
+    "/files/entries": {
+      "get": {
+        "description": "Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.",
+        "operationId": "getFileEntries",
+        "parameters": [
+          {
+            "name": "path",
+            "required": false,
+            "in": "query",
+            "description": "Virtual path of the directory to list, relative to the volume root",
+            "schema": {
+              "default": "/",
+              "type": "string"
+            }
+          },
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Volume to list, as returned by the volume endpoint",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FileEntryResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List entries in a folder",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.read"
+      }
+    },
     "/files/volumes": {
       "get": {
         "description": "Lists the volumes the current user can address. Content is addressed by volume identifier and a path relative to that volume.",
@@ -19172,6 +19236,50 @@
           "modelName"
         ],
         "type": "object"
+      },
+      "FileEntryResponseDto": {
+        "properties": {
+          "modifiedAt": {
+            "description": "Last modification time",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Base name of the entry",
+            "type": "string"
+          },
+          "path": {
+            "description": "Virtual path of the entry within its volume",
+            "type": "string"
+          },
+          "size": {
+            "description": "Size in bytes as reported by the storage backend",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FileEntryType"
+          }
+        },
+        "required": [
+          "modifiedAt",
+          "name",
+          "path",
+          "size",
+          "type"
+        ],
+        "type": "object"
+      },
+      "FileEntryType": {
+        "description": "File entry type",
+        "enum": [
+          "file",
+          "directory"
+        ],
+        "type": "string"
       },
       "FileVolumeAccess": {
         "description": "Volume access mode",
