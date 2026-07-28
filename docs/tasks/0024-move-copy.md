@@ -78,11 +78,11 @@ server/src/enum.ts                                    file.update permission
 - [x] Contended requests produce exactly one winner.
 - [x] Descriptors are not leaked across success and failure.
 - [x] Verified against the running server.
-- [ ] Relevant inherited checks pass.
+- [x] Relevant inherited checks pass.
 
 ## Verified by running it
 
-164 unit tests pass, 37 new: rename, directory rename, move between directories, move onto itself, missing source, missing target parent, target parent that is a file, occupied target as file and as directory, directory into its own descendant, invalid source and target paths, symlinked source parent, symlinked target parent, descriptor accounting, and the copy equivalents including mode and staging.
+165 unit tests pass in the file domain, 38 new: rename, directory rename, move between directories, move onto itself, missing source, missing target parent, target parent that is a file, occupied target as file and as directory, directory into its own descendant, invalid source and target paths, symlinked source parent, symlinked target parent, descriptor accounting, and the copy equivalents including mode and staging.
 
 Against the live server:
 
@@ -103,6 +103,7 @@ Against the live server:
 | **40 concurrent requests swapping the same two paths** | all `409`, no deadlock, no file lost, no advisory lock left behind |
 | 20 concurrent moves of one source to one free target   | exactly one `204`, nineteen `404`                                  |
 | 20 concurrent copies of one source to one free target  | exactly one `201`, nineteen `409`, staging empty                   |
+| A move onto itself                                     | `204` when the entry exists, `404` when it does not                |
 
 The lock proof is the interesting one. Holding `pg_advisory_lock(1685222961, 1227278764)` from a separate session — the Drive lock class and the target path's key — made the move wait, and `pg_locks` showed the server holding the source key and queued on the target:
 
