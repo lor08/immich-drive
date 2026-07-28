@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { constants, type BigIntStats, type Stats } from 'node:fs';
 import fs, { type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,6 +16,9 @@ const ENTRY_OPEN_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW;
 
 /** Owner-only, matching how volume directories are provisioned; see ADR 0004. */
 const DIRECTORY_MODE = 0o700;
+
+/** Owner-only, matching the directories that contain them. */
+const FILE_MODE = 0o600;
 const FILE_DESCRIPTOR_ROOTS: Partial<Record<NodeJS.Platform, string>> = {
   linux: '/proc/self/fd',
   darwin: '/dev/fd',
@@ -80,13 +84,25 @@ export class LocalStorageAdapter extends StorageAdapter {
     private readonly root: string,
     private readonly descriptorRoot: string,
     private readonly rootIdentity: FileIdentity,
+    /**
+     * Where partial writes live until they are complete.
+     *
+     * Deliberately outside the address root: `P1-16` made the adapter's root the volume's browsable
+     * tree so service directories are structurally unreachable, and staging must stay that way. It is
+     * never resolved from a virtual path — only this class ever names it.
+     */
+    private readonly stagingRoot: string | undefined,
   ) {
     super();
   }
 
-  static async create(root: string): Promise<LocalStorageAdapter> {
+  static async create(root: string, stagingRoot?: string): Promise<LocalStorageAdapter> {
     if (root.includes('\0') || !path.isAbsolute(root)) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Storage root must be an absolute path');
+    }
+
+    if (stagingRoot !== undefined && (stagingRoot.includes('\0') || !path.isAbsolute(stagingRoot))) {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Staging root must be an absolute path');
     }
 
     const descriptorRoot = FILE_DESCRIPTOR_ROOTS[process.platform];
@@ -117,7 +133,15 @@ export class LocalStorageAdapter extends StorageAdapter {
         throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Storage root changed during setup');
       }
 
-      return new LocalStorageAdapter(canonicalRoot, descriptorRoot, LocalStorageAdapter.identity(stats));
+      const canonicalStagingRoot =
+        stagingRoot === undefined ? undefined : await LocalStorageAdapter.prepareStaging(stagingRoot, stats);
+
+      return new LocalStorageAdapter(
+        canonicalRoot,
+        descriptorRoot,
+        LocalStorageAdapter.identity(stats),
+        canonicalStagingRoot,
+      );
     } catch (error) {
       if (error instanceof LocalStorageAdapterError) {
         throw error;
@@ -129,6 +153,36 @@ export class LocalStorageAdapter extends StorageAdapter {
         await handle.close();
       }
     }
+  }
+
+  /**
+   * Validates the staging directory.
+   *
+   * The same-filesystem check is the point: an atomic rename into the address root is only possible
+   * within one filesystem, so a staging directory on another one would silently turn every upload
+   * into a copy that can fail halfway. Better to refuse at construction than to discover it later.
+   */
+  private static async prepareStaging(stagingRoot: string, rootStats: BigIntStats): Promise<string> {
+    let canonical: string;
+    try {
+      canonical = await fs.realpath(stagingRoot);
+    } catch {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Staging root must exist');
+    }
+
+    const stats = await fs.stat(canonical, { bigint: true });
+    if (!stats.isDirectory()) {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Staging root must be a directory');
+    }
+
+    if (stats.dev !== rootStats.dev) {
+      throw new LocalStorageAdapterError(
+        LocalStorageErrorCode.InvalidRoot,
+        'Staging root must be on the same filesystem as the storage root',
+      );
+    }
+
+    return canonical;
   }
 
   override async stat(virtualPath: string): Promise<FileEntry | null> {
@@ -257,15 +311,93 @@ export class LocalStorageAdapter extends StorageAdapter {
     return this.read(virtualPath, range);
   }
 
-  override write(
+  /**
+   * Writes one file, atomically.
+   *
+   * Content lands in the staging directory first, is flushed, and only then is renamed into place.
+   * A reader therefore never observes a partial file at the target path: it either sees the previous
+   * content or the complete new content. The staging file is removed on every failure path, so an
+   * interrupted transfer leaves nothing behind — including when the client disconnects.
+   */
+  override async write(
     virtualPath: string,
     content: AsyncIterable<Uint8Array>,
     options?: StorageWriteOptions,
   ): Promise<FileEntry> {
-    void virtualPath;
-    void content;
-    void options;
-    return Promise.reject(this.unsupported('write'));
+    if (this.stagingRoot === undefined) {
+      throw new LocalStorageAdapterError(
+        LocalStorageErrorCode.UnsupportedOperation,
+        'Writing requires a staging directory',
+      );
+    }
+
+    const normalizedPath = this.normalizeVirtualPath(virtualPath);
+    if (normalizedPath === '/') {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage root is not a file');
+    }
+
+    const separator = normalizedPath.lastIndexOf('/');
+    const parentPath = separator === 0 ? '/' : normalizedPath.slice(0, separator);
+    const name = normalizedPath.slice(separator + 1);
+
+    // Validates the segment by the same rules as every other name.
+    this.joinVirtualPath(parentPath, name);
+
+    const parent = await this.resolveRequired(parentPath);
+    const stagingPath = path.join(this.stagingRoot, `upload-${randomUUID()}`);
+
+    try {
+      if (!parent.stats.isDirectory()) {
+        throw new LocalStorageAdapterError(
+          LocalStorageErrorCode.EntryNotDirectory,
+          'Storage parent is not a directory',
+        );
+      }
+
+      const existing = await this.openChild(parent.handle, name, false);
+      if (existing !== null) {
+        try {
+          if (!options?.overwrite) {
+            throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage entry already exists');
+          }
+          if (existing.stats.isDirectory()) {
+            throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage entry is a directory');
+          }
+        } finally {
+          await existing.handle.close();
+        }
+      }
+
+      // 'wx' so a staging name can never be reused, and owner-only from the moment it exists.
+      const staging = await fs.open(stagingPath, 'wx', FILE_MODE);
+      try {
+        for await (const chunk of content) {
+          await staging.write(chunk);
+        }
+        // Flush before the rename, so a crash cannot publish an empty or truncated file.
+        await staging.sync();
+      } finally {
+        await staging.close();
+      }
+
+      await fs.rename(stagingPath, this.descriptorChildPath(parent.handle, name));
+
+      const written = await this.openChild(parent.handle, name, false);
+      if (written === null) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryChanged, 'Storage entry changed during access');
+      }
+
+      try {
+        return this.toFileEntry(normalizedPath, written.stats);
+      } finally {
+        await written.handle.close();
+      }
+    } catch (error) {
+      await fs.rm(stagingPath, { force: true });
+      throw error;
+    } finally {
+      await parent.handle.close();
+    }
   }
 
   override move(sourcePath: string, targetPath: string): Promise<void> {

@@ -51,6 +51,14 @@ const FileFolderCreateSchema = z
   })
   .meta({ id: 'FileFolderCreateDto' });
 
+const FileUploadSchema = z
+  .object({
+    volumeId: z.string().describe('Volume to write into'),
+    path: z.string().describe('Virtual path of the file. The parent must already exist.'),
+    overwrite: z.stringbool().default(false).describe('Replace an existing file instead of failing'),
+  })
+  .meta({ id: 'FileUploadDto' });
+
 const FileEntryListSchema = z
   .object({
     volumeId: z.string().describe('Volume to list, as returned by the volume endpoint'),
@@ -62,3 +70,4 @@ export class FileEntryResponseDto extends createZodDto(FileEntrySchema) {}
 export class FileEntryListDto extends createZodDto(FileEntryListSchema) {}
 export class FileDownloadDto extends createZodDto(FileDownloadSchema) {}
 export class FileFolderCreateDto extends createZodDto(FileFolderCreateSchema) {}
+export class FileUploadDto extends createZodDto(FileUploadSchema) {}

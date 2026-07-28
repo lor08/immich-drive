@@ -62,7 +62,9 @@ export class VolumeRegistry {
 
     let adapter = this.adapters.get(volume.filesPath);
     if (!adapter) {
-      adapter = LocalStorageAdapter.create(volume.filesPath);
+      // The staging directory is a sibling of the browsable tree, so uploads can be renamed into
+      // place atomically without ever being addressable.
+      adapter = LocalStorageAdapter.create(volume.filesPath, volume.tempPath);
       this.adapters.set(volume.filesPath, adapter);
     }
 

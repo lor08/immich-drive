@@ -176,6 +176,7 @@ Class | Method | HTTP request | Description
 *FilesApi* | [**downloadFile**](doc//FilesApi.md#downloadfile) | **GET** /files/download | Download a file
 *FilesApi* | [**getFileEntries**](doc//FilesApi.md#getfileentries) | **GET** /files/entries | List entries in a folder
 *FilesApi* | [**getFileVolumes**](doc//FilesApi.md#getfilevolumes) | **GET** /files/volumes | List file volumes
+*FilesApi* | [**uploadFile**](doc//FilesApi.md#uploadfile) | **PUT** /files/content | Upload a file
 *JobsApi* | [**createJob**](doc//JobsApi.md#createjob) | **POST** /jobs | Create a manual job
 *JobsApi* | [**getQueuesLegacy**](doc//JobsApi.md#getqueueslegacy) | **GET** /jobs | Retrieve queue counts and status
 *JobsApi* | [**runQueueCommandLegacy**](doc//JobsApi.md#runqueuecommandlegacy) | **PUT** /jobs/{name} | Run jobs

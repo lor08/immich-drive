@@ -265,4 +265,85 @@ class FilesApi {
     }
     return null;
   }
+
+  /// Upload a file
+  ///
+  /// Writes the request body to a path inside a volume. The content is staged and renamed into place, so a partial file is never visible at the target. The parent must already exist, and an existing file is only replaced when overwrite is set.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] path (required):
+  ///   Virtual path of the file. The parent must already exist.
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume to write into
+  ///
+  /// * [MultipartFile] body (required):
+  ///
+  /// * [String] overwrite:
+  ///   Replace an existing file instead of failing
+  Future<Response> uploadFileWithHttpInfo(String path, String volumeId, MultipartFile body, { String? overwrite, Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/content';
+
+    // ignore: prefer_final_locals
+    Object? postBody = body;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (overwrite != null) {
+      queryParams.addAll(_queryParams('', 'overwrite', overwrite));
+    }
+      queryParams.addAll(_queryParams('', 'path', path));
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>['application/octet-stream'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Upload a file
+  ///
+  /// Writes the request body to a path inside a volume. The content is staged and renamed into place, so a partial file is never visible at the target. The parent must already exist, and an existing file is only replaced when overwrite is set.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] path (required):
+  ///   Virtual path of the file. The parent must already exist.
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume to write into
+  ///
+  /// * [MultipartFile] body (required):
+  ///
+  /// * [String] overwrite:
+  ///   Replace an existing file instead of failing
+  Future<FileEntryResponseDto?> uploadFile(String path, String volumeId, MultipartFile body, { String? overwrite, Future<void>? abortTrigger, }) async {
+    final response = await uploadFileWithHttpInfo(path, volumeId, body, overwrite: overwrite, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileEntryResponseDto',) as FileEntryResponseDto;
+    
+    }
+    return null;
+  }
 }
