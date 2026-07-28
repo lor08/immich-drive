@@ -76,7 +76,7 @@ Sequencing note: browse and write capabilities are delivered on the filesystem a
 - **P1-08 — Volume discovery and module registration — Done.** One authenticated endpoint listing the caller's volumes, plus the module registration that serves it. This is the first upstream seam the fork takes on, recorded in the seam inventory. Delivered by PR #29.
 - **P1-18 — Folder listing API — Done.** Lists folder contents and maps domain errors onto status codes a client can act on. Delivered by PR #33.
 - **P1-19 — Folder creation API — Done.** Descriptor-relative, non-recursive directory creation under the path lock, with conflicts reported as `409`. Delivered by PR #43.
-- **P1-09 — Atomic upload pipeline — Active.** Streams into the volume's staging directory, fsyncs, renames into place, and cleans up on every failure path. Size limits wait for `P7-03`; resumable transfer waits for `P3-01`. Tracked by Issue #44.
+- **P1-09 — Atomic upload pipeline — Done.** Streams into the volume's staging directory, fsyncs, renames into place, and cleans up on every failure path. Size limits wait for `P7-03`; resumable transfer waits for `P3-01`. Delivered by PR #45.
 - **P1-10 — Authenticated download API — Done.** Streams whole files from the adapter rather than by host path, with a separate `file.download` permission and an unconditional octet-stream type. Ranges stay with `P3-03`. Delivered by PR #39.
 - **P1-11 — Rename, move, and copy semantics — Backlog.** Same-volume moves must be `rename(2)`. Cross-volume moves are detected through filesystem identity and rejected explicitly until a resumable transfer job exists. Define collision handling, metadata updates, cancellation, and recovery.
 - **P1-12 — Trash, restore, and permanent deletion — Backlog.** Soft delete moves content into the trash directory of the same volume with a sidecar manifest, so deletion never becomes a cross-filesystem copy. Define retention, restore collisions, administrator purge, and reconciliation.
@@ -102,8 +102,8 @@ Goal: make the Phase 1 capabilities usable through the existing Immich web appli
 
 - **P2-01 — Web integration seam and Files navigation — Done.** Isolated route and feature directory, navigation entry gated on a new server feature flag so a disabled deployment looks untouched, and the web seams the `P0-12` spike predicted. Delivered by PR #35.
 - **P2-02 — Folder browser — Done.** Breadcrumbs, folder navigation, empty and error states, with only folders interactive until a download endpoint exists. Sorting, pagination, and selection stay out until there is content that needs them. Delivered by PR #37.
-- **P2-03 — Upload queue — Backlog.** Add drag-and-drop, picker uploads, progress, cancellation, retry, collision choices, and navigation-safe background state.
-- **P2-04 — File and folder actions — Backlog.** Create folder, download, rename, move, copy, trash, restore, and permanent delete with confirmation and conflict UX.
+- **P2-03 — Upload queue — Partially delivered, remainder Backlog.** A single-file picker upload landed with `P2-01`'s successor task; drag-and-drop, progress, cancellation, retry, and background state remain. Tracked by Issue #46 for the delivered part.
+- **P2-04 — File and folder actions — Partially delivered, remainder Backlog.** Create folder and download landed; rename, move, copy, trash, restore, and permanent delete wait on their endpoints. Tracked by Issue #46 for the delivered part.
 - **P2-05 — Baseline previews — Backlog.** Provide safe image, text, PDF, audio, and video previews where browsers support them without introducing premature transcoding.
 - **P2-06 — Storage and health administration UI — Backlog.** Display configured roots, capacity, permissions, scan state, mount health, and actionable errors.
 - **P2-07 — Accessibility and responsive behavior — Backlog.** Keyboard navigation, focus management, screen-reader labels, mobile layouts, and large-list usability.
