@@ -22,6 +22,8 @@ Make the file domain reachable from the web client: a `/files` route, a navigati
 
 **The upstream feature spec is edited, deliberately.** `server.service.spec.ts` asserts the exact feature object with `toEqual`, so a new field breaks it. The alternative was to skip the flag and ship a misleading navigation entry. Adding one line to an upstream test is the smaller cost, and it is an addition rather than a weakening of the assertion.
 
+**Volume cards are not links.** They were, pointing at `/files?volumeId=…`, which the loader ignores — so clicking did nothing. A card that looks clickable and goes nowhere is worse than one that does not invite the click, so the anchor was removed. The link returns with `P2-02`, together with the view it should open.
+
 **The page borrows Immich's visual language rather than inventing one.** It uses `UserPageLayout`, `Container`, and the `Card`/`Icon` composition already used by the workflow cards, so the Files view reads as part of Immich rather than as something grafted on.
 
 ## Scope
