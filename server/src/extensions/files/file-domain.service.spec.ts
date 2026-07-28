@@ -4,8 +4,14 @@ import path from 'node:path';
 import { AuthDto } from 'src/dtos/auth.dto';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { FilesController } from 'src/extensions/files/files.controller';
+import { PathLock } from 'src/extensions/files/path-lock';
 import { PRIVATE_VOLUME_ID, VolumeAccess, VolumeKind } from 'src/extensions/files/volume';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
+
+/** Runs the handler directly: the lock's own behaviour is covered by its unit tests and a live check. */
+const passthroughLocks = {
+  withPathLock: (_volumeId: string, _path: string, handler: () => Promise<unknown>) => handler(),
+} as unknown as PathLock;
 
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 const OTHER_OWNER = '5f2b9c4e-0000-4000-8000-000000000002';
@@ -18,7 +24,7 @@ describe(FileDomainService.name, () => {
 
   beforeEach(async () => {
     storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-domain-'));
-    sut = new FileDomainService(new VolumeRegistry({ storageRoot, sharedSpace: 'family' }));
+    sut = new FileDomainService(new VolumeRegistry({ storageRoot, sharedSpace: 'family' }), passthroughLocks);
   });
 
   afterEach(async () => {
@@ -83,7 +89,7 @@ describe(FileDomainService.name, () => {
   });
 
   it('reports that file storage is not enabled when the domain is unconfigured', async () => {
-    const disabled = new FileDomainService(null);
+    const disabled = new FileDomainService(null, passthroughLocks);
 
     await expect(disabled.listVolumes(OWNER)).rejects.toThrow('Immich Drive file storage is not enabled');
     await expect(disabled.listEntries(OWNER, PRIVATE_VOLUME_ID, '/')).rejects.toThrow(
@@ -118,7 +124,7 @@ describe(FilesController.name, () => {
 
   it('lists folder entries for the authenticated user', async () => {
     const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-entries-'));
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }));
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks);
     const [volume] = await service.listVolumes(OWNER);
     await fs.mkdir(path.join(volume.filesPath, 'documents'));
     await fs.writeFile(path.join(volume.filesPath, 'documents', 'report.txt'), 'contents');

@@ -255,6 +255,86 @@ describe(LocalStorageAdapter.name, () => {
     });
   });
 
+  describe('createDirectory', () => {
+    it('creates a directory at the root and reports it', async () => {
+      const entry = await adapter.createDirectory('/documents');
+
+      expect(entry).toMatchObject({ path: '/documents', name: 'documents', type: FileEntryType.Directory });
+      await expect(fs.stat(path.join(root, 'documents')).then((stats) => stats.isDirectory())).resolves.toBe(true);
+    });
+
+    it('creates a directory inside an existing one', async () => {
+      await adapter.createDirectory('/documents');
+
+      const entry = await adapter.createDirectory('/documents/reports');
+
+      expect(entry.path).toBe('/documents/reports');
+      await expect(fs.stat(path.join(root, 'documents', 'reports')).then((s) => s.isDirectory())).resolves.toBe(true);
+    });
+
+    it('creates the directory owner-only', async () => {
+      await adapter.createDirectory('/documents');
+
+      const { mode } = await fs.stat(path.join(root, 'documents'));
+
+      expect(mode & 0o777).toBe(0o700);
+    });
+
+    it.each([
+      ['a directory', async (target: string) => fs.mkdir(target)],
+      ['a file', async (target: string) => fs.writeFile(target, 'contents')],
+    ])('refuses to create over an existing entry, when it is %s', async (_label, create) => {
+      await create(path.join(root, 'occupied'));
+
+      await expect(adapter.createDirectory('/occupied')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+    });
+
+    it('refuses the storage root itself', async () => {
+      await expect(adapter.createDirectory('/')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+    });
+
+    it('does not create anything when the parent is missing', async () => {
+      await expect(adapter.createDirectory('/missing/child')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(root)).resolves.toEqual([]);
+    });
+
+    it('refuses to create under a file', async () => {
+      await fs.writeFile(path.join(root, 'report.txt'), 'contents');
+
+      await expect(adapter.createDirectory('/report.txt/child')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotDirectory,
+      });
+    });
+
+    it.each(['relative', '/', '/documents//reports', '/documents/../escape', '/nul\0byte', String.raw`C:\windows`])(
+      'refuses the path %j without creating anything',
+      async (badPath) => {
+        await expect(adapter.createDirectory(badPath)).rejects.toBeInstanceOf(LocalStorageAdapterError);
+
+        await expect(fs.readdir(root)).resolves.toEqual([]);
+      },
+    );
+
+    it('cannot place a directory outside the root through a symlinked parent', async () => {
+      const outside = path.join(workspace, 'outside');
+      await fs.mkdir(outside);
+      await fs.symlink(outside, path.join(root, 'escape'));
+
+      await expect(adapter.createDirectory('/escape/child')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.SymlinkNotAllowed,
+      });
+
+      await expect(fs.readdir(outside)).resolves.toEqual([]);
+    });
+  });
+
   it('fails mutation operations explicitly without changing the filesystem', async () => {
     const before = await fs.readdir(root);
 

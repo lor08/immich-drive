@@ -12,6 +12,9 @@ import {
 const READ_CHUNK_SIZE = 64 * 1024;
 const DIRECTORY_OPEN_FLAGS = constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW;
 const ENTRY_OPEN_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW;
+
+/** Owner-only, matching how volume directories are provisioned; see ADR 0004. */
+const DIRECTORY_MODE = 0o700;
 const FILE_DESCRIPTOR_ROOTS: Partial<Record<NodeJS.Platform, string>> = {
   linux: '/proc/self/fd',
   darwin: '/dev/fd',
@@ -32,6 +35,7 @@ export enum LocalStorageErrorCode {
   InvalidPath = 'invalid-path',
   SymlinkNotAllowed = 'symlink-not-allowed',
   EntryNotFound = 'entry-not-found',
+  EntryExists = 'entry-exists',
   EntryNotDirectory = 'entry-not-directory',
   EntryNotFile = 'entry-not-file',
   EntryChanged = 'entry-changed',
@@ -137,6 +141,62 @@ export class LocalStorageAdapter extends StorageAdapter {
       return this.toFileEntry(entry.virtualPath, entry.stats);
     } finally {
       await entry.handle.close();
+    }
+  }
+
+  /**
+   * Creates one directory, relative to its pinned parent descriptor.
+   *
+   * The parent is resolved the same way reads are, so it cannot be swapped between validation and
+   * creation, and `mkdir` addresses it through its descriptor rather than by re-walking a path
+   * string. Creation is deliberately not recursive: a missing parent is an error rather than an
+   * invitation to materialise a hierarchy, which also means a mistyped path fails instead of
+   * quietly succeeding.
+   */
+  override async createDirectory(virtualPath: string): Promise<FileEntry> {
+    const normalizedPath = this.normalizeVirtualPath(virtualPath);
+    if (normalizedPath === '/') {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage root already exists');
+    }
+
+    const separator = normalizedPath.lastIndexOf('/');
+    const parentPath = separator === 0 ? '/' : normalizedPath.slice(0, separator);
+    const name = normalizedPath.slice(separator + 1);
+
+    // Validates the segment by the same rules as every other name, and throws if it is unusable.
+    this.joinVirtualPath(parentPath, name);
+
+    const parent = await this.resolveRequired(parentPath);
+    try {
+      if (!parent.stats.isDirectory()) {
+        throw new LocalStorageAdapterError(
+          LocalStorageErrorCode.EntryNotDirectory,
+          'Storage parent is not a directory',
+        );
+      }
+
+      try {
+        await fs.mkdir(this.descriptorChildPath(parent.handle, name), { mode: DIRECTORY_MODE });
+      } catch (error) {
+        if (this.isErrno(error, 'EEXIST')) {
+          throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage entry already exists');
+        }
+        throw error;
+      }
+
+      // Re-open through the parent descriptor, so what is reported is what now exists on disk.
+      const child = await this.openChild(parent.handle, name, true);
+      if (child === null) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryChanged, 'Storage entry changed during access');
+      }
+
+      try {
+        return this.toFileEntry(normalizedPath, child.stats);
+      } finally {
+        await child.handle.close();
+      }
+    } finally {
+      await parent.handle.close();
     }
   }
 

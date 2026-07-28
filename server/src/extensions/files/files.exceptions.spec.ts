@@ -5,8 +5,14 @@ import path from 'node:path';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { toHttpException } from 'src/extensions/files/files.exceptions';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
+import { PathLock } from 'src/extensions/files/path-lock';
 import { PRIVATE_VOLUME_ID, VolumeError, VolumeErrorCode } from 'src/extensions/files/volume';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
+
+/** Runs the handler directly: the lock's own behaviour is covered by its unit tests and a live check. */
+const passthroughLocks = {
+  withPathLock: (_volumeId: string, _path: string, handler: () => Promise<unknown>) => handler(),
+} as unknown as PathLock;
 
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 
@@ -25,7 +31,7 @@ describe('toHttpException', () => {
 
   beforeEach(async () => {
     storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-errors-'));
-    sut = new FileDomainService(new VolumeRegistry({ storageRoot }));
+    sut = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks);
   });
 
   afterEach(async () => {

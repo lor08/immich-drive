@@ -3,6 +3,7 @@ import { StorageCore } from 'src/cores/storage.core';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { DriveConfig } from 'src/extensions/files/files.config';
 import { FilesController } from 'src/extensions/files/files.controller';
+import { PathLock } from 'src/extensions/files/path-lock';
 import { validateStorageRoot } from 'src/extensions/files/storage-root.validator';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 
@@ -43,6 +44,7 @@ export class FilesModule implements OnApplicationBootstrap {
             return new VolumeRegistry({ storageRoot: path, sharedSpace: config.sharedSpace });
           },
         },
+        PathLock,
         FileDomainService,
       ],
       exports: [FileDomainService],

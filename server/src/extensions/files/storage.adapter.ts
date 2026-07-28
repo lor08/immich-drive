@@ -16,6 +16,7 @@ export interface StorageDeleteOptions {
 export abstract class StorageAdapter {
   abstract stat(path: string): Promise<FileEntry | null>;
   abstract list(path: string): Promise<readonly FileEntry[]>;
+  abstract createDirectory(path: string): Promise<FileEntry>;
   abstract open(path: string, range?: StorageRange): Promise<AsyncIterable<Uint8Array>>;
   abstract write(path: string, content: AsyncIterable<Uint8Array>, options?: StorageWriteOptions): Promise<FileEntry>;
   abstract move(sourcePath: string, targetPath: string): Promise<void>;

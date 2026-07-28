@@ -1,4 +1,4 @@
-import { Controller, Get, Query, StreamableFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, StreamableFile, UseInterceptors } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Readable } from 'node:stream';
 import { Endpoint, HistoryBuilder } from 'src/decorators';
@@ -9,6 +9,7 @@ import {
   FileDownloadDto,
   FileEntryListDto,
   FileEntryResponseDto,
+  FileFolderCreateDto,
   FileVolumeResponseDto,
 } from 'src/extensions/files/files.dto';
 import { FileDomainErrorInterceptor } from 'src/extensions/files/files.interceptor';
@@ -44,6 +45,18 @@ export class FilesController {
   async getFileEntries(@Auth() auth: AuthDto, @Query() dto: FileEntryListDto): Promise<FileEntryResponseDto[]> {
     const entries = await this.service.listEntries(auth.user.id, dto.volumeId, dto.path);
     return entries.map((entry) => ({ ...entry }));
+  }
+
+  @Post('folders')
+  @Authenticated({ permission: Permission.FileCreate })
+  @Endpoint({
+    summary: 'Create a folder',
+    description:
+      'Creates one folder inside a volume. The parent must already exist: creation is not recursive, so a mistyped path fails rather than materialising a hierarchy.',
+    history: HistoryBuilder.v3(),
+  })
+  async createFileFolder(@Auth() auth: AuthDto, @Body() dto: FileFolderCreateDto): Promise<FileEntryResponseDto> {
+    return { ...(await this.service.createFolder(auth.user.id, dto.volumeId, dto.path)) };
   }
 
   @Get('download')
