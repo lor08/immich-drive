@@ -508,6 +508,12 @@ describe(LocalStorageAdapter.name, () => {
       expect(after.ino).toBe(before.ino);
     });
 
+    it('refuses a move onto itself when nothing is there', async () => {
+      await expect(writable.move('/documents/missing.txt', '/documents/missing.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+    });
+
     it('refuses a missing source', async () => {
       await expect(writable.move('/documents/missing.txt', '/documents/final.txt')).rejects.toMatchObject({
         code: LocalStorageErrorCode.EntryNotFound,
@@ -716,6 +722,10 @@ describe(LocalStorageAdapter.name, () => {
         await writable.copy('/documents/report.txt', `/copy-${round}.txt`);
         await expect(writable.copy('/documents', '/archive')).rejects.toBeInstanceOf(LocalStorageAdapterError);
         await expect(writable.copy('/documents/missing.txt', '/missing-copy.txt')).rejects.toBeInstanceOf(
+          LocalStorageAdapterError,
+        );
+        // Fails after the source is opened, which is the case that could leave a reader behind.
+        await expect(writable.copy('/documents/report.txt', '/warm.txt')).rejects.toBeInstanceOf(
           LocalStorageAdapterError,
         );
       }

@@ -391,10 +391,6 @@ export class LocalStorageAdapter extends StorageAdapter {
     const source = this.splitPath(sourcePath);
     const target = this.splitPath(targetPath);
 
-    if (source.normalized === target.normalized) {
-      return;
-    }
-
     // Refused before touching the filesystem, so the caller gets our error instead of a bare errno.
     if (target.normalized.startsWith(`${source.normalized}/`)) {
       throw new LocalStorageAdapterError(
@@ -410,6 +406,12 @@ export class LocalStorageAdapter extends StorageAdapter {
         throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Storage entry does not exist');
       }
       await existing.handle.close();
+
+      // Nothing to do — but only once there is something to do nothing with. Reporting success for a
+      // path that holds nothing would tell the caller their entry is at the target when none exists.
+      if (source.normalized === target.normalized) {
+        return;
+      }
 
       const targetParent = await this.resolveRequired(target.parentPath);
       try {
