@@ -38,7 +38,8 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0012-volume-discovery.md`       | `P1-08`    | Volume discovery and registration      | Done       | #28   | #29          | First upstream seam taken on; folder listing and creation split out as `P1-18`.            |
 | `0014-folder-listing.md`         | `P1-18`    | Folder listing API                     | Done       | #32   | #33          | Adds error-to-status mapping; folder creation split out as `P1-19`.                        |
 | `0015-web-files-route.md`        | `P2-01`    | Web Files route and navigation         | Done       | #34   | #35          | Server feature flag hides the entry when Drive is off; inventory grew to thirteen seams.   |
-| `0016-folder-browser.md`         | `P2-02`    | Folder browser                         | Active     | #36   | —            | Breadcrumbs and navigation; only folders interactive; expected errors stay in-page.        |
+| `0016-folder-browser.md`         | `P2-02`    | Folder browser                         | Done       | #36   | #37          | Breadcrumbs and navigation; only folders interactive; expected errors stay in-page.        |
+| `0017-file-download.md`          | `P1-10`    | Authenticated download API             | Active     | #38   | —            | Streams from the adapter, never by host path; ranges deferred to `P3-03`.                  |
 | `0013-fork-runnable-ci.md`       | `P0-14`    | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever. |
 
 ## Promotable work with accepted decisions and no Issue yet
@@ -58,7 +59,7 @@ These items are defined by an accepted ADR and may be promoted without further d
 
 ## Next recommended sequence
 
-1. Finish `P2-02`, which completes the first visible slice: an operator places files, a user browses them, nothing writes to disk.
+1. Finish `P1-10` download, which closes the read path end to end.
 2. Promote `P1-17` advisory locking, then the write slices `P1-19`, `P1-09`, and `P1-10`.
 3. Deliver `P1-04` schema together with `P1-06` reconciliation. ADR 0009 already fixes the migration and rollback rules, so this is where the documented downgrade procedure and the upgrade fixture test become due.
 4. Run `P0-13` before publishing anything, so no build can push under an upstream name.

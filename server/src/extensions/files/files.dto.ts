@@ -37,6 +37,13 @@ const FileEntrySchema = z
   })
   .meta({ id: 'FileEntryResponseDto' });
 
+const FileDownloadSchema = z
+  .object({
+    volumeId: z.string().describe('Volume holding the file'),
+    path: z.string().describe('Virtual path of the file, relative to the volume root'),
+  })
+  .meta({ id: 'FileDownloadDto' });
+
 const FileEntryListSchema = z
   .object({
     volumeId: z.string().describe('Volume to list, as returned by the volume endpoint'),
@@ -46,3 +53,4 @@ const FileEntryListSchema = z
 
 export class FileEntryResponseDto extends createZodDto(FileEntrySchema) {}
 export class FileEntryListDto extends createZodDto(FileEntryListSchema) {}
+export class FileDownloadDto extends createZodDto(FileDownloadSchema) {}

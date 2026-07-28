@@ -169,6 +169,7 @@ export enum Permission {
   FaceDelete = 'face.delete',
 
   FileRead = 'file.read',
+  FileDownload = 'file.download',
 
   FolderRead = 'folder.read',
 

@@ -16,6 +16,74 @@ class FilesApi {
 
   final ApiClient apiClient;
 
+  /// Download a file
+  ///
+  /// Streams a file from a volume. Whole files only; range requests are not supported yet.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] path (required):
+  ///   Virtual path of the file, relative to the volume root
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume holding the file
+  Future<Response> downloadFileWithHttpInfo(String path, String volumeId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/download';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'path', path));
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Download a file
+  ///
+  /// Streams a file from a volume. Whole files only; range requests are not supported yet.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] path (required):
+  ///   Virtual path of the file, relative to the volume root
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume holding the file
+  Future<MultipartFile?> downloadFile(String path, String volumeId, { Future<void>? abortTrigger, }) async {
+    final response = await downloadFileWithHttpInfo(path, volumeId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'MultipartFile',) as MultipartFile;
+    
+    }
+    return null;
+  }
+
   /// List entries in a folder
   ///
   /// Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.

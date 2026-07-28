@@ -52,6 +52,36 @@ describe(FileDomainService.name, () => {
     await expect(sut.listEntries(OWNER, 'shared:other', '/')).rejects.toThrow();
   });
 
+  it('opens a file together with its entry', async () => {
+    const [volume] = await sut.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+
+    const { entry, content } = await sut.openFile(OWNER, PRIVATE_VOLUME_ID, '/report.txt');
+
+    expect(entry).toMatchObject({ name: 'report.txt', size: 8 });
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of content) {
+      chunks.push(Buffer.from(chunk));
+    }
+    expect(Buffer.concat(chunks).toString()).toBe('contents');
+  });
+
+  it('refuses to open a directory as a file', async () => {
+    const [volume] = await sut.listVolumes(OWNER);
+    await fs.mkdir(path.join(volume.filesPath, 'documents'));
+
+    await expect(sut.openFile(OWNER, PRIVATE_VOLUME_ID, '/documents')).rejects.toMatchObject({
+      code: 'entry-not-file',
+    });
+  });
+
+  it('refuses to open a missing file', async () => {
+    await expect(sut.openFile(OWNER, PRIVATE_VOLUME_ID, '/missing.txt')).rejects.toMatchObject({
+      code: 'entry-not-found',
+    });
+  });
+
   it('reports that file storage is not enabled when the domain is unconfigured', async () => {
     const disabled = new FileDomainService(null);
 
