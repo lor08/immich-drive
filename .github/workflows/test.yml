@@ -443,20 +443,35 @@ jobs:
         if: ${{ !cancelled() }}
 
       - name: Start Docker Compose
-        run: docker compose up -d --build --renew-anon-volumes --force-recreate --remove-orphans --wait --wait-timeout 300
+        id: stack
+        # Retried, because the failure this guards against is a registry rate limit while pulling
+        # base images — transient, unrelated to the code, and not something a fork can raise. It cost
+        # two full diagnoses before being identified. A genuine startup failure still fails, after
+        # three attempts.
+        run: |
+          for attempt in 1 2 3; do
+            if docker compose up -d --build --renew-anon-volumes --force-recreate --remove-orphans --wait --wait-timeout 300; then
+              exit 0
+            fi
+            echo "::warning::Stack failed to start (attempt ${attempt}/3)"
+            docker compose down --remove-orphans --volumes || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::Stack failed to start after 3 attempts"
+          exit 1
         if: ${{ !cancelled() }}
 
       - name: Run e2e tests (api & cli)
         env:
           VITEST_DISABLE_DOCKER_SETUP: true
         run: pnpm test
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
 
       - name: Run e2e tests (maintenance)
         env:
           VITEST_DISABLE_DOCKER_SETUP: true
         run: pnpm test:maintenance
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
 
       - name: Capture Docker logs
         if: always()
@@ -521,14 +536,29 @@ jobs:
         if: ${{ !cancelled() }}
 
       - name: Docker build
-        run: docker compose up -d --build --renew-anon-volumes --force-recreate --remove-orphans --wait --wait-timeout 300
+        id: stack
+        # Retried, because the failure this guards against is a registry rate limit while pulling
+        # base images — transient, unrelated to the code, and not something a fork can raise. It cost
+        # two full diagnoses before being identified. A genuine startup failure still fails, after
+        # three attempts.
+        run: |
+          for attempt in 1 2 3; do
+            if docker compose up -d --build --renew-anon-volumes --force-recreate --remove-orphans --wait --wait-timeout 300; then
+              exit 0
+            fi
+            echo "::warning::Stack failed to start (attempt ${attempt}/3)"
+            docker compose down --remove-orphans --volumes || true
+            sleep $((attempt * 20))
+          done
+          echo "::error::Stack failed to start after 3 attempts"
+          exit 1
         if: ${{ !cancelled() }}
 
       - name: Run e2e tests (web)
         env:
           PLAYWRIGHT_DISABLE_WEBSERVER: true
         run: pnpm test:web
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
 
       - name: Archive e2e test (web) results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -541,7 +571,7 @@ jobs:
         env:
           PLAYWRIGHT_DISABLE_WEBSERVER: true
         run: pnpm test:web:ui
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
 
       - name: Archive ui test (web) results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -554,7 +584,7 @@ jobs:
         env:
           PLAYWRIGHT_DISABLE_WEBSERVER: true
         run: pnpm test:web:maintenance
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
 
       - name: Archive maintenance tests (web) results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
