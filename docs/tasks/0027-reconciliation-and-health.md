@@ -110,20 +110,20 @@ Counts report what a pass **changed**, not what state the index is in. That came
 
 Against the live server, on a volume holding content created before the index existed:
 
-| Check                                                        | Result                                                                     |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| First pass over pre-existing content                          | 12 directories, 28 entries added, 1 foreign entry reported in the trash     |
-| A file created outside the application                        | added, `present`, correct size                                             |
-| A file removed outside the application                        | `missing`; the row survives                                                |
-| A file appended to outside the application                    | `conflicted`, and the row still holds the old size (4) while disk holds 21  |
-| A second pass with nothing changed                            | all counts zero                                                            |
-| `limit: 1`, three times                                       | stopped at `/`, resumed from `/`, stopped at `/Documents`                   |
-| Finishing the interrupted walk                                | resumed from `/Documents`, 10 of the 12 directories, completed              |
-| **Volume root replaced by an empty directory**                | `identity-changed`; the pass refused; all 30 rows untouched                 |
-| Marker deleted / replaced / made unreadable                   | `marker-missing` / `marker-mismatch` / `marker-mismatch`                    |
-| Root restored                                                 | `healthy`, and the next pass reported zeros                                 |
-| **Tree emptied, same root and marker**                        | `root-empty-while-indexed`; refused; nothing marked missing                 |
-| Index dropped entirely, then one pass                         | rebuilt 29 entries; same `device`, `inode` and `markerId` as before          |
+| Check                                          | Result                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
+| First pass over pre-existing content           | 12 directories, 28 entries added, 1 foreign entry reported in the trash    |
+| A file created outside the application         | added, `present`, correct size                                             |
+| A file removed outside the application         | `missing`; the row survives                                                |
+| A file appended to outside the application     | `conflicted`, and the row still holds the old size (4) while disk holds 21 |
+| A second pass with nothing changed             | all counts zero                                                            |
+| `limit: 1`, three times                        | stopped at `/`, resumed from `/`, stopped at `/Documents`                  |
+| Finishing the interrupted walk                 | resumed from `/Documents`, 10 of the 12 directories, completed             |
+| **Volume root replaced by an empty directory** | `identity-changed`; the pass refused; all 30 rows untouched                |
+| Marker deleted / replaced / made unreadable    | `marker-missing` / `marker-mismatch` / `marker-mismatch`                   |
+| Root restored                                  | `healthy`, and the next pass reported zeros                                |
+| **Tree emptied, same root and marker**         | `root-empty-while-indexed`; refused; nothing marked missing                |
+| Index dropped entirely, then one pass          | rebuilt 29 entries; same `device`, `inode` and `markerId` as before        |
 
 ## Definition of done
 
