@@ -1,10 +1,23 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { FileEntry, FileEntryType } from 'src/extensions/files/file-entry';
+import { FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
 import { PathLock } from 'src/extensions/files/path-lock';
-import { StorageDeleteOptions, StorageRange, StorageWriteOptions } from 'src/extensions/files/storage.adapter';
+import {
+  StorageDeleteOptions,
+  StorageRange,
+  StorageWriteOptions,
+  TrashPurgeResult,
+} from 'src/extensions/files/storage.adapter';
 import { Volume } from 'src/extensions/files/volume';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
+
+/**
+ * Lock key for a trash record.
+ *
+ * A normalized path always begins with a slash, so this prefix cannot be produced by one. That keeps
+ * record keys and path keys in the same lock space without either being able to mean the other.
+ */
+const trashLockKey = (trashId: string): string => `trash:${trashId}`;
 
 /**
  * Entry point for file-domain operations.
@@ -134,5 +147,56 @@ export class FileDomainService {
   async deleteEntry(ownerId: string, volumeId: string, path: string, options?: StorageDeleteOptions): Promise<void> {
     const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
     return adapter.delete(path, options);
+  }
+
+  /** Moves an entry to the trash, holding the lock on the path it leaves. */
+  async trashEntry(ownerId: string, volumeId: string, path: string): Promise<TrashRecord> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+
+    return this.locks.withPathLock(volumeId, path, () => adapter.trash(path));
+  }
+
+  async listTrash(ownerId: string, volumeId: string): Promise<readonly TrashRecord[]> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.listTrash();
+  }
+
+  /**
+   * Restores a record, holding the lock on the record and on the path it lands at.
+   *
+   * The record is keyed by `trash:<id>`, which no normalized path can produce, so the two namespaces
+   * cannot collide even by accident. Locking the record is what stops a restore and a purge of the
+   * same record from running at once; locking the target is what stops two restores landing there.
+   */
+  async restoreFromTrash(ownerId: string, volumeId: string, trashId: string, targetPath?: string): Promise<FileEntry> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const keys = [trashLockKey(trashId), ...(targetPath === undefined ? [] : [targetPath])];
+
+    return this.locks.withPathLocks(volumeId, keys, () => adapter.restoreFromTrash(trashId, targetPath));
+  }
+
+  /**
+   * Removes one record for good, holding the lock on the record.
+   *
+   * The target path is unknown here and irrelevant: nothing lands anywhere, so the record itself is
+   * the only thing two callers can contend over.
+   */
+  async purgeFromTrash(ownerId: string, volumeId: string, trashId: string): Promise<void> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+
+    return this.locks.withPathLock(volumeId, trashLockKey(trashId), () => adapter.purgeFromTrash(trashId));
+  }
+
+  /**
+   * Empties the trash.
+   *
+   * Deliberately not locked as one unit: a lock covering every record would have to be a volume-wide
+   * lock, which would serialise emptying against every unrelated operation. Each record is removed
+   * independently, and a record being restored at the same moment simply fails to be removed and is
+   * reported in the failed count.
+   */
+  async emptyTrash(ownerId: string, volumeId: string): Promise<TrashPurgeResult> {
+    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    return adapter.emptyTrash();
   }
 }

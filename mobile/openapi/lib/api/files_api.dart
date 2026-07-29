@@ -198,6 +198,63 @@ class FilesApi {
     return null;
   }
 
+  /// Empty the trash
+  ///
+  /// Permanently removes every record in a volume and reports how many went and how many could not. A record that cannot be removed is counted rather than raised, so one bad record cannot make the trash un-emptiable.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [FileTrashEmptyDto] fileTrashEmptyDto (required):
+  Future<Response> emptyFileTrashWithHttpInfo(FileTrashEmptyDto fileTrashEmptyDto, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/trash/empty';
+
+    // ignore: prefer_final_locals
+    Object? postBody = fileTrashEmptyDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Empty the trash
+  ///
+  /// Permanently removes every record in a volume and reports how many went and how many could not. A record that cannot be removed is counted rather than raised, so one bad record cannot make the trash un-emptiable.
+  ///
+  /// Parameters:
+  ///
+  /// * [FileTrashEmptyDto] fileTrashEmptyDto (required):
+  Future<FileTrashPurgeResponseDto?> emptyFileTrash(FileTrashEmptyDto fileTrashEmptyDto, { Future<void>? abortTrigger, }) async {
+    final response = await emptyFileTrashWithHttpInfo(fileTrashEmptyDto, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileTrashPurgeResponseDto',) as FileTrashPurgeResponseDto;
+    
+    }
+    return null;
+  }
+
   /// List entries in a folder
   ///
   /// Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.
@@ -265,6 +322,70 @@ class FilesApi {
       final responseBody = await _decodeBodyBytes(response);
       return (await apiClient.deserializeAsync(responseBody, 'List<FileEntryResponseDto>') as List)
         .cast<FileEntryResponseDto>()
+        .toList(growable: false);
+
+    }
+    return null;
+  }
+
+  /// List the trash
+  ///
+  /// Lists deleted entries in a volume, newest first. A record whose manifest is unreadable is still listed, with an unknown original path, so it can be restored to an explicit path or removed.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume whose trash is listed
+  Future<Response> getFileTrashWithHttpInfo(String volumeId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/trash';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// List the trash
+  ///
+  /// Lists deleted entries in a volume, newest first. A record whose manifest is unreadable is still listed, with an unknown original path, so it can be restored to an explicit path or removed.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume whose trash is listed
+  Future<List<FileTrashRecordResponseDto>?> getFileTrash(String volumeId, { Future<void>? abortTrigger, }) async {
+    final response = await getFileTrashWithHttpInfo(volumeId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<FileTrashRecordResponseDto>') as List)
+        .cast<FileTrashRecordResponseDto>()
         .toList(growable: false);
 
     }
@@ -370,6 +491,191 @@ class FilesApi {
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+  }
+
+  /// Remove one trash record for good
+  ///
+  /// Permanently removes one record and its content. This is the only operation that destroys data.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] trashId (required):
+  ///   Identifier of the trash record to remove for good
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume holding the record
+  Future<Response> purgeFileEntryWithHttpInfo(String trashId, String volumeId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/trash';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'trashId', trashId));
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Remove one trash record for good
+  ///
+  /// Permanently removes one record and its content. This is the only operation that destroys data.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] trashId (required):
+  ///   Identifier of the trash record to remove for good
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume holding the record
+  Future<void> purgeFileEntry(String trashId, String volumeId, { Future<void>? abortTrigger, }) async {
+    final response = await purgeFileEntryWithHttpInfo(trashId, volumeId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
+  /// Restore an entry from the trash
+  ///
+  /// Puts a deleted entry back, at the path it came from or at one the caller names. An occupied target is a conflict rather than a replacement, and naming a target is how that conflict is resolved.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [FileTrashRestoreDto] fileTrashRestoreDto (required):
+  Future<Response> restoreFileEntryWithHttpInfo(FileTrashRestoreDto fileTrashRestoreDto, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/trash/restore';
+
+    // ignore: prefer_final_locals
+    Object? postBody = fileTrashRestoreDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Restore an entry from the trash
+  ///
+  /// Puts a deleted entry back, at the path it came from or at one the caller names. An occupied target is a conflict rather than a replacement, and naming a target is how that conflict is resolved.
+  ///
+  /// Parameters:
+  ///
+  /// * [FileTrashRestoreDto] fileTrashRestoreDto (required):
+  Future<FileEntryResponseDto?> restoreFileEntry(FileTrashRestoreDto fileTrashRestoreDto, { Future<void>? abortTrigger, }) async {
+    final response = await restoreFileEntryWithHttpInfo(fileTrashRestoreDto, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileEntryResponseDto',) as FileEntryResponseDto;
+    
+    }
+    return null;
+  }
+
+  /// Move an entry to the trash
+  ///
+  /// Moves a file or folder into the volume's trash and returns the resulting record. A folder goes in whole. Nothing is removed from disk here: the entry is renamed into a sibling directory of the browsable tree, so it stays recoverable and the operation stays a rename rather than a copy.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] path (required):
+  ///   Virtual path of the entry to delete
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume holding the entry
+  Future<Response> trashFileEntryWithHttpInfo(String path, String volumeId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/entries';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'path', path));
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Move an entry to the trash
+  ///
+  /// Moves a file or folder into the volume's trash and returns the resulting record. A folder goes in whole. Nothing is removed from disk here: the entry is renamed into a sibling directory of the browsable tree, so it stays recoverable and the operation stays a rename rather than a copy.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] path (required):
+  ///   Virtual path of the entry to delete
+  ///
+  /// * [String] volumeId (required):
+  ///   Volume holding the entry
+  Future<FileTrashRecordResponseDto?> trashFileEntry(String path, String volumeId, { Future<void>? abortTrigger, }) async {
+    final response = await trashFileEntryWithHttpInfo(path, volumeId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileTrashRecordResponseDto',) as FileTrashRecordResponseDto;
+    
+    }
+    return null;
   }
 
   /// Upload a file

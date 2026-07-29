@@ -6474,6 +6474,64 @@
       }
     },
     "/files/entries": {
+      "delete": {
+        "description": "Moves a file or folder into the volume's trash and returns the resulting record. A folder goes in whole. Nothing is removed from disk here: the entry is renamed into a sibling directory of the browsable tree, so it stays recoverable and the operation stays a rename rather than a copy.",
+        "operationId": "trashFileEntry",
+        "parameters": [
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "description": "Virtual path of the entry to delete",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Volume holding the entry",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileTrashRecordResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Move an entry to the trash",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.delete"
+      },
       "get": {
         "description": "Lists the direct children of a folder inside a volume. Paths are relative to the volume root, and ordering is deterministic by name.",
         "operationId": "getFileEntries",
@@ -6630,6 +6688,213 @@
           }
         ],
         "x-immich-permission": "file.update"
+      }
+    },
+    "/files/trash": {
+      "delete": {
+        "description": "Permanently removes one record and its content. This is the only operation that destroys data.",
+        "operationId": "purgeFileEntry",
+        "parameters": [
+          {
+            "name": "trashId",
+            "required": true,
+            "in": "query",
+            "description": "Identifier of the trash record to remove for good",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Volume holding the record",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Remove one trash record for good",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.delete"
+      },
+      "get": {
+        "description": "Lists deleted entries in a volume, newest first. A record whose manifest is unreadable is still listed, with an unknown original path, so it can be restored to an explicit path or removed.",
+        "operationId": "getFileTrash",
+        "parameters": [
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Volume whose trash is listed",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FileTrashRecordResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List the trash",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.read"
+      }
+    },
+    "/files/trash/empty": {
+      "post": {
+        "description": "Permanently removes every record in a volume and reports how many went and how many could not. A record that cannot be removed is counted rather than raised, so one bad record cannot make the trash un-emptiable.",
+        "operationId": "emptyFileTrash",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileTrashEmptyDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileTrashPurgeResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Empty the trash",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.delete"
+      }
+    },
+    "/files/trash/restore": {
+      "post": {
+        "description": "Puts a deleted entry back, at the path it came from or at one the caller names. An occupied target is a conflict rather than a replacement, and naming a target is how that conflict is resolved.",
+        "operationId": "restoreFileEntry",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileTrashRestoreDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntryResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Restore an entry from the trash",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.delete"
       }
     },
     "/files/volumes": {
@@ -19630,6 +19895,103 @@
         ],
         "type": "object"
       },
+      "FileTrashEmptyDto": {
+        "properties": {
+          "volumeId": {
+            "description": "Volume whose trash is emptied",
+            "type": "string"
+          }
+        },
+        "required": [
+          "volumeId"
+        ],
+        "type": "object"
+      },
+      "FileTrashPurgeResponseDto": {
+        "properties": {
+          "failed": {
+            "description": "Records that could not be removed",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "removed": {
+            "description": "Records removed",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "failed",
+          "removed"
+        ],
+        "type": "object"
+      },
+      "FileTrashRecordResponseDto": {
+        "properties": {
+          "deletedAt": {
+            "description": "When the entry was deleted, or null when unknown",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier of the trash record",
+            "type": "string"
+          },
+          "name": {
+            "description": "Base name the entry had when it was deleted",
+            "type": "string"
+          },
+          "originalPath": {
+            "description": "Virtual path the entry came from, or null when the record manifest is unreadable",
+            "nullable": true,
+            "type": "string"
+          },
+          "size": {
+            "description": "Size in bytes as reported by the storage backend",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FileEntryType"
+          }
+        },
+        "required": [
+          "deletedAt",
+          "id",
+          "name",
+          "originalPath",
+          "size",
+          "type"
+        ],
+        "type": "object"
+      },
+      "FileTrashRestoreDto": {
+        "properties": {
+          "targetPath": {
+            "description": "Where to restore the entry. Defaults to the path it came from; required when that is unknown, and the way to resolve a conflict at it.",
+            "type": "string"
+          },
+          "trashId": {
+            "description": "Identifier of the trash record to restore",
+            "type": "string"
+          },
+          "volumeId": {
+            "description": "Volume holding the record",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trashId",
+          "volumeId"
+        ],
+        "type": "object"
+      },
       "FileVolumeAccess": {
         "description": "Volume access mode",
         "enum": [
@@ -21483,6 +21845,7 @@
           "file.create",
           "file.upload",
           "file.update",
+          "file.delete",
           "folder.read",
           "job.create",
           "job.read",

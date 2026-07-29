@@ -734,6 +734,332 @@ describe(LocalStorageAdapter.name, () => {
     });
   });
 
+  describe('trash', () => {
+    let staging: string;
+    let trash: string;
+    let writable: LocalStorageAdapter;
+
+    const manifestPath = (id: string) => path.join(trash, `${id}.json`);
+
+    beforeEach(async () => {
+      staging = path.join(workspace, 'staging');
+      trash = path.join(workspace, 'trash');
+      await fs.mkdir(staging);
+      await fs.mkdir(trash);
+      writable = await LocalStorageAdapter.create(root, staging, trash);
+
+      await fs.mkdir(path.join(root, 'documents'));
+      await fs.writeFile(path.join(root, 'documents', 'report.txt'), 'contents');
+    });
+
+    it('moves a file into the trash and leaves nothing behind', async () => {
+      const record = await writable.trash('/documents/report.txt');
+
+      expect(record).toMatchObject({
+        name: 'report.txt',
+        originalPath: '/documents/report.txt',
+        type: FileEntryType.File,
+        size: 8,
+      });
+      expect(record.deletedAt).toBeInstanceOf(Date);
+
+      await expect(fs.readdir(path.join(root, 'documents'))).resolves.toEqual([]);
+      await expect(fs.readFile(path.join(trash, record.id, 'report.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('records where the entry came from, in a manifest a person can read', async () => {
+      const record = await writable.trash('/documents/report.txt');
+
+      const manifest = JSON.parse(await fs.readFile(manifestPath(record.id), 'utf8'));
+
+      expect(manifest).toMatchObject({
+        version: 1,
+        originalPath: '/documents/report.txt',
+        name: 'report.txt',
+        type: FileEntryType.File,
+      });
+      expect(Date.parse(manifest.deletedAt)).not.toBeNaN();
+    });
+
+    it('moves a folder in whole, in one operation', async () => {
+      await fs.mkdir(path.join(root, 'documents', 'nested'));
+      await fs.writeFile(path.join(root, 'documents', 'nested', 'deep.txt'), 'deep');
+
+      const record = await writable.trash('/documents');
+
+      expect(record).toMatchObject({ name: 'documents', type: FileEntryType.Directory });
+      await expect(fs.readdir(root)).resolves.toEqual([]);
+      await expect(fs.readFile(path.join(trash, record.id, 'documents', 'nested', 'deep.txt'), 'utf8')).resolves.toBe(
+        'deep',
+      );
+    });
+
+    it('creates the record owner-only', async () => {
+      const record = await writable.trash('/documents/report.txt');
+
+      const directory = await fs.stat(path.join(trash, record.id));
+      const manifest = await fs.stat(manifestPath(record.id));
+
+      expect(directory.mode & 0o777).toBe(0o700);
+      expect(manifest.mode & 0o777).toBe(0o600);
+    });
+
+    it('refuses a missing entry without writing a record', async () => {
+      await expect(writable.trash('/documents/missing.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
+    it.each(['relative', '/', '/documents/../escape', '/nul\0byte'])(
+      'refuses the path %j without writing a record',
+      async (badPath) => {
+        await expect(writable.trash(badPath)).rejects.toBeInstanceOf(LocalStorageAdapterError);
+
+        await expect(fs.readdir(trash)).resolves.toEqual([]);
+        await expect(fs.readdir(root)).resolves.toEqual(['documents']);
+      },
+    );
+
+    it('cannot reach outside the root through a symlinked parent', async () => {
+      const outside = path.join(workspace, 'outside');
+      await fs.mkdir(outside);
+      await fs.writeFile(path.join(outside, 'secret.txt'), 'secret');
+      await fs.symlink(outside, path.join(root, 'escape'));
+
+      await expect(writable.trash('/escape/secret.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.SymlinkNotAllowed,
+      });
+
+      await expect(fs.readdir(outside)).resolves.toEqual(['secret.txt']);
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
+    it('keeps the trash out of the address space entirely', async () => {
+      await writable.trash('/documents/report.txt');
+
+      // The trash is a sibling of the address root, so nothing addressable can name it.
+      await expect(writable.stat('/.trash')).resolves.toBeNull();
+      await expect(writable.list('/')).resolves.toEqual([
+        expect.objectContaining({ name: 'documents', path: '/documents' }),
+      ]);
+    });
+
+    it('lists records newest first', async () => {
+      await fs.writeFile(path.join(root, 'first.txt'), '1');
+      await fs.writeFile(path.join(root, 'second.txt'), '2');
+
+      const first = await writable.trash('/first.txt');
+      const second = await writable.trash('/second.txt');
+
+      // Deletions inside one millisecond would otherwise tie; the manifest is rewritten to separate them.
+      const manifest = JSON.parse(await fs.readFile(manifestPath(first.id), 'utf8'));
+      await fs.writeFile(
+        manifestPath(first.id),
+        JSON.stringify({ ...manifest, deletedAt: '2020-01-01T00:00:00.000Z' }),
+      );
+
+      await expect(writable.listTrash()).resolves.toEqual([
+        expect.objectContaining({ id: second.id }),
+        expect.objectContaining({ id: first.id, deletedAt: new Date('2020-01-01T00:00:00.000Z') }),
+      ]);
+    });
+
+    it.each([
+      ['missing', async (target: string) => fs.rm(target)],
+      ['not JSON', async (target: string) => fs.writeFile(target, 'not json at all')],
+      ['not an object', async (target: string) => fs.writeFile(target, '"a string"')],
+      [
+        'naming a path outside the address space',
+        async (target: string) => fs.writeFile(target, JSON.stringify({ originalPath: '/../escape.txt' })),
+      ],
+    ])('still lists a record whose manifest is %s', async (_label, damage) => {
+      const record = await writable.trash('/documents/report.txt');
+      await damage(manifestPath(record.id));
+
+      await expect(writable.listTrash()).resolves.toEqual([
+        expect.objectContaining({ id: record.id, name: 'report.txt', originalPath: null, size: 8 }),
+      ]);
+    });
+
+    it('ignores directories in the trash that are not records', async () => {
+      await fs.mkdir(path.join(trash, 'not-a-record'));
+      await fs.writeFile(path.join(trash, 'loose-file.txt'), 'x');
+
+      await expect(writable.listTrash()).resolves.toEqual([]);
+    });
+
+    it('restores an entry to where it came from', async () => {
+      const record = await writable.trash('/documents/report.txt');
+
+      const restored = await writable.restoreFromTrash(record.id);
+
+      expect(restored).toMatchObject({ path: '/documents/report.txt', name: 'report.txt', size: 8 });
+      await expect(fs.readFile(path.join(root, 'documents', 'report.txt'), 'utf8')).resolves.toBe('contents');
+      await expect(writable.listTrash()).resolves.toEqual([]);
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
+    it('restores a folder with its contents', async () => {
+      await fs.mkdir(path.join(root, 'documents', 'nested'));
+      await fs.writeFile(path.join(root, 'documents', 'nested', 'deep.txt'), 'deep');
+      const record = await writable.trash('/documents');
+
+      await writable.restoreFromTrash(record.id);
+
+      await expect(fs.readFile(path.join(root, 'documents', 'nested', 'deep.txt'), 'utf8')).resolves.toBe('deep');
+    });
+
+    it('restores to a named path instead', async () => {
+      const record = await writable.trash('/documents/report.txt');
+
+      const restored = await writable.restoreFromTrash(record.id, '/elsewhere.txt');
+
+      expect(restored).toMatchObject({ path: '/elsewhere.txt' });
+      await expect(fs.readFile(path.join(root, 'elsewhere.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('refuses to restore over an occupied path, and keeps the record', async () => {
+      const record = await writable.trash('/documents/report.txt');
+      await fs.writeFile(path.join(root, 'documents', 'report.txt'), 'newer');
+
+      await expect(writable.restoreFromTrash(record.id)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+
+      await expect(fs.readFile(path.join(root, 'documents', 'report.txt'), 'utf8')).resolves.toBe('newer');
+      await expect(writable.listTrash()).resolves.toEqual([expect.objectContaining({ id: record.id })]);
+    });
+
+    it('refuses to restore when the original parent is gone, without recreating it', async () => {
+      const record = await writable.trash('/documents/report.txt');
+      await fs.rmdir(path.join(root, 'documents'));
+
+      await expect(writable.restoreFromTrash(record.id)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(root)).resolves.toEqual([]);
+      await expect(writable.listTrash()).resolves.toEqual([expect.objectContaining({ id: record.id })]);
+    });
+
+    it('requires a target when the original path is unknown', async () => {
+      const record = await writable.trash('/documents/report.txt');
+      await fs.rm(manifestPath(record.id));
+
+      await expect(writable.restoreFromTrash(record.id)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidPath,
+      });
+
+      await expect(writable.restoreFromTrash(record.id, '/recovered.txt')).resolves.toMatchObject({
+        path: '/recovered.txt',
+      });
+    });
+
+    it.each(['not-a-uuid', '../escape', '.', ''])('refuses the record identifier %j', async (badId) => {
+      await expect(writable.restoreFromTrash(badId)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidPath,
+      });
+      await expect(writable.purgeFromTrash(badId)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidPath,
+      });
+    });
+
+    it('reports a record that does not exist', async () => {
+      const absent = '00000000-0000-4000-8000-000000000000';
+
+      await expect(writable.restoreFromTrash(absent)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+      await expect(writable.purgeFromTrash(absent)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+    });
+
+    it('purges one record, content and manifest together', async () => {
+      const record = await writable.trash('/documents/report.txt');
+
+      await writable.purgeFromTrash(record.id);
+
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+      await expect(writable.listTrash()).resolves.toEqual([]);
+    });
+
+    it('purges a folder record with everything under it', async () => {
+      await fs.mkdir(path.join(root, 'documents', 'nested'));
+      await fs.writeFile(path.join(root, 'documents', 'nested', 'deep.txt'), 'deep');
+      const record = await writable.trash('/documents');
+
+      await writable.purgeFromTrash(record.id);
+
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
+    it('empties the trash and reports what went', async () => {
+      await fs.writeFile(path.join(root, 'first.txt'), '1');
+      await writable.trash('/documents/report.txt');
+      await writable.trash('/first.txt');
+
+      await expect(writable.emptyTrash()).resolves.toEqual({ removed: 2, failed: 0 });
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
+    it('empties an already empty trash without complaining', async () => {
+      await expect(writable.emptyTrash()).resolves.toEqual({ removed: 0, failed: 0 });
+    });
+
+    it('leaves foreign content in the trash alone when emptying', async () => {
+      await writable.trash('/documents/report.txt');
+      await fs.writeFile(path.join(trash, 'someone-elses-note.txt'), 'x');
+
+      await expect(writable.emptyTrash()).resolves.toEqual({ removed: 1, failed: 0 });
+      await expect(fs.readdir(trash)).resolves.toEqual(['someone-elses-note.txt']);
+    });
+
+    it('refuses a trash root on another filesystem', async () => {
+      // /dev/shm is a separate mount on Linux, which is what makes a rename into it impossible.
+      const separate = '/dev/shm';
+      const separateStats = await fs.stat(separate).catch(() => null);
+      const rootStats = await fs.stat(root);
+      if (separateStats === null || separateStats.dev === rootStats.dev) {
+        return;
+      }
+
+      await expect(LocalStorageAdapter.create(root, staging, separate)).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidRoot,
+      });
+    });
+
+    it('refuses a trash root that does not exist', async () => {
+      await expect(LocalStorageAdapter.create(root, staging, path.join(workspace, 'absent'))).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidRoot,
+      });
+    });
+
+    it('closes every descriptor across success and failure', async () => {
+      // Warm up first, so descriptors the runtime opens lazily are not attributed to the adapter.
+      const warm = await writable.trash('/documents/report.txt');
+      await writable.restoreFromTrash(warm.id);
+      const before = await countOpenDescriptors();
+
+      for (let round = 0; round < 5; round++) {
+        const record = await writable.trash('/documents/report.txt');
+        await writable.listTrash();
+        await expect(writable.trash('/documents/report.txt')).rejects.toBeInstanceOf(LocalStorageAdapterError);
+        await expect(writable.restoreFromTrash('not-a-uuid')).rejects.toBeInstanceOf(LocalStorageAdapterError);
+        await writable.restoreFromTrash(record.id);
+
+        const purged = await writable.trash('/documents/report.txt');
+        await writable.purgeFromTrash(purged.id);
+        await writable.emptyTrash();
+        await fs.writeFile(path.join(root, 'documents', 'report.txt'), 'contents');
+      }
+
+      await expect(countOpenDescriptors()).resolves.toBeLessThanOrEqual(before);
+    });
+  });
+
   it('fails mutation operations explicitly without changing the filesystem', async () => {
     const before = await fs.readdir(root);
 
@@ -749,6 +1075,16 @@ describe(LocalStorageAdapter.name, () => {
     await expect(adapter.delete('/a.txt')).rejects.toMatchObject({
       code: LocalStorageErrorCode.UnsupportedOperation,
     });
+
+    for (const operation of [
+      () => adapter.trash('/a.txt'),
+      () => adapter.listTrash(),
+      () => adapter.restoreFromTrash('00000000-0000-4000-8000-000000000000'),
+      () => adapter.purgeFromTrash('00000000-0000-4000-8000-000000000000'),
+      () => adapter.emptyTrash(),
+    ]) {
+      await expect(operation()).rejects.toMatchObject({ code: LocalStorageErrorCode.UnsupportedOperation });
+    }
 
     await expect(fs.readdir(root)).resolves.toEqual(before);
   });

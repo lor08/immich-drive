@@ -139,6 +139,66 @@ describe(FileDomainService.name, () => {
     await expect(other.moveEntry(OWNER, 'shared:other', '/a.txt', '/b.txt')).rejects.toThrow();
   });
 
+  it('deletes to the trash under the lock on the path it leaves', async () => {
+    const locked: string[][] = [];
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const [volume] = await service.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+
+    const record = await service.trashEntry(OWNER, PRIVATE_VOLUME_ID, '/report.txt');
+
+    expect(locked).toEqual([['/report.txt']]);
+    expect(record).toMatchObject({ name: 'report.txt', originalPath: '/report.txt' });
+    await expect(fs.readdir(volume.filesPath)).resolves.toEqual([]);
+    await expect(fs.readdir(path.join(volume.trashPath, record.id))).resolves.toEqual(['report.txt']);
+  });
+
+  it('restores under the lock on the record and on the target', async () => {
+    const locked: string[][] = [];
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const [volume] = await service.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+
+    const record = await service.trashEntry(OWNER, PRIVATE_VOLUME_ID, '/report.txt');
+    await service.restoreFromTrash(OWNER, PRIVATE_VOLUME_ID, record.id, '/restored.txt');
+
+    // The record key cannot be produced by a normalized path, so the two namespaces stay apart.
+    expect(locked).toEqual([['/report.txt'], [`trash:${record.id}`, '/restored.txt']]);
+    await expect(fs.readFile(path.join(volume.filesPath, 'restored.txt'), 'utf8')).resolves.toBe('contents');
+  });
+
+  it('purges under the lock on the record alone', async () => {
+    const locked: string[][] = [];
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const [volume] = await service.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+
+    const record = await service.trashEntry(OWNER, PRIVATE_VOLUME_ID, '/report.txt');
+    await service.purgeFromTrash(OWNER, PRIVATE_VOLUME_ID, record.id);
+
+    expect(locked).toEqual([['/report.txt'], [`trash:${record.id}`]]);
+    await expect(service.listTrash(OWNER, PRIVATE_VOLUME_ID)).resolves.toEqual([]);
+  });
+
+  it('keeps one owner out of another owner trash', async () => {
+    const [mine] = await sut.listVolumes(OWNER);
+    await fs.writeFile(path.join(mine.filesPath, 'secret.txt'), 'mine');
+    const record = await sut.trashEntry(OWNER, PRIVATE_VOLUME_ID, '/secret.txt');
+
+    await expect(sut.listTrash(OTHER_OWNER, PRIVATE_VOLUME_ID)).resolves.toEqual([]);
+    await expect(sut.restoreFromTrash(OTHER_OWNER, PRIVATE_VOLUME_ID, record.id)).rejects.toMatchObject({
+      code: 'entry-not-found',
+    });
+    await expect(sut.purgeFromTrash(OTHER_OWNER, PRIVATE_VOLUME_ID, record.id)).rejects.toMatchObject({
+      code: 'entry-not-found',
+    });
+    await expect(sut.emptyTrash(OTHER_OWNER, PRIVATE_VOLUME_ID)).resolves.toEqual({ removed: 0, failed: 0 });
+
+    await expect(sut.listTrash(OWNER, PRIVATE_VOLUME_ID)).resolves.toEqual([
+      expect.objectContaining({ id: record.id }),
+    ]);
+  });
+
   it('reports that file storage is not enabled when the domain is unconfigured', async () => {
     const disabled = new FileDomainService(null, passthroughLocks);
 

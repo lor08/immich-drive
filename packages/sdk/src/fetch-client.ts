@@ -1223,6 +1223,19 @@ export type FileCopyDto = {
     /** Volume holding both the source and the target */
     volumeId: string;
 };
+export type FileTrashRecordResponseDto = {
+    /** When the entry was deleted, or null when unknown */
+    deletedAt: string | null;
+    /** Identifier of the trash record */
+    id: string;
+    /** Base name the entry had when it was deleted */
+    name: string;
+    /** Virtual path the entry came from, or null when the record manifest is unreadable */
+    originalPath: string | null;
+    /** Size in bytes as reported by the storage backend */
+    size: number;
+    "type": FileEntryType;
+};
 export type FileFolderCreateDto = {
     /** Virtual path of the folder to create. The parent must already exist. */
     path: string;
@@ -1235,6 +1248,24 @@ export type FileMoveDto = {
     /** Virtual path the entry is moved to. Its parent must already exist and must be free. */
     targetPath: string;
     /** Volume holding both the source and the target */
+    volumeId: string;
+};
+export type FileTrashEmptyDto = {
+    /** Volume whose trash is emptied */
+    volumeId: string;
+};
+export type FileTrashPurgeResponseDto = {
+    /** Records that could not be removed */
+    failed: number;
+    /** Records removed */
+    removed: number;
+};
+export type FileTrashRestoreDto = {
+    /** Where to restore the entry. Defaults to the path it came from; required when that is unknown, and the way to resolve a conflict at it. */
+    targetPath?: string;
+    /** Identifier of the trash record to restore */
+    trashId: string;
+    /** Volume holding the record */
     volumeId: string;
 };
 export type FileVolumeResponseDto = {
@@ -4892,6 +4923,24 @@ export function downloadFile({ path, volumeId }: {
     }));
 }
 /**
+ * Move an entry to the trash
+ */
+export function trashFileEntry({ path, volumeId }: {
+    path: string;
+    volumeId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileTrashRecordResponseDto;
+    }>(`/files/entries${QS.query(QS.explode({
+        path,
+        volumeId
+    }))}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
  * List entries in a folder
  */
 export function getFileEntries({ path, volumeId }: {
@@ -4933,6 +4982,66 @@ export function moveFileEntry({ fileMoveDto }: {
         ...opts,
         method: "POST",
         body: fileMoveDto
+    })));
+}
+/**
+ * Remove one trash record for good
+ */
+export function purgeFileEntry({ trashId, volumeId }: {
+    trashId: string;
+    volumeId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/files/trash${QS.query(QS.explode({
+        trashId,
+        volumeId
+    }))}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * List the trash
+ */
+export function getFileTrash({ volumeId }: {
+    volumeId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileTrashRecordResponseDto[];
+    }>(`/files/trash${QS.query(QS.explode({
+        volumeId
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Empty the trash
+ */
+export function emptyFileTrash({ fileTrashEmptyDto }: {
+    fileTrashEmptyDto: FileTrashEmptyDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: FileTrashPurgeResponseDto;
+    }>("/files/trash/empty", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileTrashEmptyDto
+    })));
+}
+/**
+ * Restore an entry from the trash
+ */
+export function restoreFileEntry({ fileTrashRestoreDto }: {
+    fileTrashRestoreDto: FileTrashRestoreDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: FileEntryResponseDto;
+    }>("/files/trash/restore", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileTrashRestoreDto
     })));
 }
 /**
@@ -7366,6 +7475,7 @@ export enum Permission {
     FileCreate = "file.create",
     FileUpload = "file.upload",
     FileUpdate = "file.update",
+    FileDelete = "file.delete",
     FolderRead = "folder.read",
     JobCreate = "job.create",
     JobRead = "job.read",
