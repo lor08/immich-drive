@@ -48,7 +48,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0023-e2e-stack-startup.md`      | `P0-16`         | Diagnosable e2e stack startup          | Done       | #49   | #51          | Cause was a registry rate limit, not a database race; the wrong hypothesis is recorded.      |
 | `0024-move-copy.md`              | `P1-11`         | Move, rename and copy entries          | Done       | #52   | #53          | Deterministic multi-path locking; directory copy and cross-volume moves stay out.            |
 | `0025-trash-restore-purge.md`    | `P1-12`         | Trash, restore and permanent deletion  | Done       | #54   | #55          | Trash root beside the address root; retention needs the job-queue seam and stays out.        |
-| `0026-drive-index-schema.md`     | `P1-04`         | Drive index schema                     | Active     | #56   | pending      | First Drive-owned tables; migrations carry a fixed `9000000000000` prefix so they sort last. |
+| `0026-drive-index-schema.md`     | `P1-04`         | Drive index schema                     | Active     | #56   | #58          | First Drive-owned tables; migrations carry a fixed `9000000000000` prefix so they sort last. |
 | `0013-fork-runnable-ci.md`       | `P0-14`         | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever.   |
 
 ## Promotable work with accepted decisions and no Issue yet
