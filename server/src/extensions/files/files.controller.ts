@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -25,6 +26,13 @@ import {
   FileEntryResponseDto,
   FileFolderCreateDto,
   FileMoveDto,
+  FileTrashDeleteDto,
+  FileTrashEmptyDto,
+  FileTrashListDto,
+  FileTrashPurgeDto,
+  FileTrashPurgeResponseDto,
+  FileTrashRecordResponseDto,
+  FileTrashRestoreDto,
   FileUploadDto,
   FileVolumeResponseDto,
 } from 'src/extensions/files/files.dto';
@@ -122,6 +130,67 @@ export class FilesController {
   })
   async copyFileEntry(@Auth() auth: AuthDto, @Body() dto: FileCopyDto): Promise<FileEntryResponseDto> {
     return { ...(await this.service.copyEntry(auth.user.id, dto.volumeId, dto.sourcePath, dto.targetPath)) };
+  }
+
+  @Delete('entries')
+  @Authenticated({ permission: Permission.FileDelete })
+  @Endpoint({
+    summary: 'Move an entry to the trash',
+    description:
+      "Moves a file or folder into the volume's trash and returns the resulting record. A folder goes in whole. Nothing is removed from disk here: the entry is renamed into a sibling directory of the browsable tree, so it stays recoverable and the operation stays a rename rather than a copy.",
+    history: HistoryBuilder.v3(),
+  })
+  async trashFileEntry(@Auth() auth: AuthDto, @Query() dto: FileTrashDeleteDto): Promise<FileTrashRecordResponseDto> {
+    return { ...(await this.service.trashEntry(auth.user.id, dto.volumeId, dto.path)) };
+  }
+
+  @Get('trash')
+  @Authenticated({ permission: Permission.FileRead })
+  @Endpoint({
+    summary: 'List the trash',
+    description:
+      'Lists deleted entries in a volume, newest first. A record whose manifest is unreadable is still listed, with an unknown original path, so it can be restored to an explicit path or removed.',
+    history: HistoryBuilder.v3(),
+  })
+  async getFileTrash(@Auth() auth: AuthDto, @Query() dto: FileTrashListDto): Promise<FileTrashRecordResponseDto[]> {
+    const records = await this.service.listTrash(auth.user.id, dto.volumeId);
+    return records.map((record) => ({ ...record }));
+  }
+
+  @Post('trash/restore')
+  @Authenticated({ permission: Permission.FileDelete })
+  @Endpoint({
+    summary: 'Restore an entry from the trash',
+    description:
+      'Puts a deleted entry back, at the path it came from or at one the caller names. An occupied target is a conflict rather than a replacement, and naming a target is how that conflict is resolved.',
+    history: HistoryBuilder.v3(),
+  })
+  async restoreFileEntry(@Auth() auth: AuthDto, @Body() dto: FileTrashRestoreDto): Promise<FileEntryResponseDto> {
+    return { ...(await this.service.restoreFromTrash(auth.user.id, dto.volumeId, dto.trashId, dto.targetPath)) };
+  }
+
+  @Delete('trash')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Authenticated({ permission: Permission.FileDelete })
+  @Endpoint({
+    summary: 'Remove one trash record for good',
+    description: 'Permanently removes one record and its content. This is the only operation that destroys data.',
+    history: HistoryBuilder.v3(),
+  })
+  async purgeFileEntry(@Auth() auth: AuthDto, @Query() dto: FileTrashPurgeDto): Promise<void> {
+    await this.service.purgeFromTrash(auth.user.id, dto.volumeId, dto.trashId);
+  }
+
+  @Post('trash/empty')
+  @Authenticated({ permission: Permission.FileDelete })
+  @Endpoint({
+    summary: 'Empty the trash',
+    description:
+      'Permanently removes every record in a volume and reports how many went and how many could not. A record that cannot be removed is counted rather than raised, so one bad record cannot make the trash un-emptiable.',
+    history: HistoryBuilder.v3(),
+  })
+  async emptyFileTrash(@Auth() auth: AuthDto, @Body() dto: FileTrashEmptyDto): Promise<FileTrashPurgeResponseDto> {
+    return { ...(await this.service.emptyTrash(auth.user.id, dto.volumeId)) };
   }
 
   @Get('download')

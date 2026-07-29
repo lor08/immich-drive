@@ -87,6 +87,74 @@ const FileCopySchema = z
   })
   .meta({ id: 'FileCopyDto' });
 
+/**
+ * One entry in the trash.
+ *
+ * `originalPath` and `deletedAt` are nullable on purpose: they come from a sidecar manifest, and a
+ * record whose manifest is unreadable is still reported so it can be restored to an explicit path or
+ * removed. A client should treat an unknown origin as "restore needs a target", not as an error.
+ */
+const TrashRecordSchema = z
+  .object({
+    id: z.string().describe('Identifier of the trash record'),
+    name: z.string().describe('Base name the entry had when it was deleted'),
+    originalPath: z
+      .string()
+      .nullable()
+      .describe('Virtual path the entry came from, or null when the record manifest is unreadable'),
+    type: FileEntryTypeSchema,
+    size: z.number().int().describe('Size in bytes as reported by the storage backend'),
+    deletedAt: isoDatetimeToDate.nullable().describe('When the entry was deleted, or null when unknown'),
+  })
+  .meta({ id: 'FileTrashRecordResponseDto' });
+
+const TrashListSchema = z
+  .object({
+    volumeId: z.string().describe('Volume whose trash is listed'),
+  })
+  .meta({ id: 'FileTrashListDto' });
+
+const TrashDeleteSchema = z
+  .object({
+    volumeId: z.string().describe('Volume holding the entry'),
+    path: z.string().describe('Virtual path of the entry to delete'),
+  })
+  .meta({ id: 'FileTrashDeleteDto' });
+
+const TrashRestoreSchema = z
+  .object({
+    volumeId: z.string().describe('Volume holding the record'),
+    trashId: z.string().describe('Identifier of the trash record to restore'),
+    targetPath: z
+      .string()
+      .optional()
+      .describe(
+        'Where to restore the entry. Defaults to the path it came from; required when that is unknown, and the way to resolve a conflict at it.',
+      ),
+  })
+  .meta({ id: 'FileTrashRestoreDto' });
+
+const TrashPurgeSchema = z
+  .object({
+    volumeId: z.string().describe('Volume holding the record'),
+    trashId: z.string().describe('Identifier of the trash record to remove for good'),
+  })
+  .meta({ id: 'FileTrashPurgeDto' });
+
+const TrashEmptySchema = z
+  .object({
+    volumeId: z.string().describe('Volume whose trash is emptied'),
+  })
+  .meta({ id: 'FileTrashEmptyDto' });
+
+/** Emptying reports counts, because one record the filesystem refuses to remove must not block it. */
+const TrashPurgeResultSchema = z
+  .object({
+    removed: z.number().int().describe('Records removed'),
+    failed: z.number().int().describe('Records that could not be removed'),
+  })
+  .meta({ id: 'FileTrashPurgeResponseDto' });
+
 const FileEntryListSchema = z
   .object({
     volumeId: z.string().describe('Volume to list, as returned by the volume endpoint'),
@@ -101,3 +169,10 @@ export class FileFolderCreateDto extends createZodDto(FileFolderCreateSchema) {}
 export class FileUploadDto extends createZodDto(FileUploadSchema) {}
 export class FileMoveDto extends createZodDto(FileMoveSchema) {}
 export class FileCopyDto extends createZodDto(FileCopySchema) {}
+export class FileTrashRecordResponseDto extends createZodDto(TrashRecordSchema) {}
+export class FileTrashListDto extends createZodDto(TrashListSchema) {}
+export class FileTrashDeleteDto extends createZodDto(TrashDeleteSchema) {}
+export class FileTrashRestoreDto extends createZodDto(TrashRestoreSchema) {}
+export class FileTrashPurgeDto extends createZodDto(TrashPurgeSchema) {}
+export class FileTrashEmptyDto extends createZodDto(TrashEmptySchema) {}
+export class FileTrashPurgeResponseDto extends createZodDto(TrashPurgeResultSchema) {}

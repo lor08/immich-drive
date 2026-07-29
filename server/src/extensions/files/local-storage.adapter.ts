@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { constants, type BigIntStats, type Stats } from 'node:fs';
 import fs, { type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
-import { FileEntry, FileEntryType } from 'src/extensions/files/file-entry';
+import { FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
 import {
   StorageAdapter,
   StorageDeleteOptions,
   StorageRange,
   StorageWriteOptions,
+  TrashPurgeResult,
 } from 'src/extensions/files/storage.adapter';
 
 const READ_CHUNK_SIZE = 64 * 1024;
@@ -19,6 +20,23 @@ const DIRECTORY_MODE = 0o700;
 
 /** Owner-only, matching the directories that contain them. */
 const FILE_MODE = 0o600;
+
+/**
+ * Version stamped into every trash manifest.
+ *
+ * The manifest is read by a future version of this server, and possibly by a person with a text
+ * editor, so it says which shape it is rather than relying on the reader to guess.
+ */
+const TRASH_MANIFEST_VERSION = 1;
+
+/**
+ * A trash record is named by a generated identifier, and only that shape is accepted back.
+ *
+ * Identifiers arrive from clients, so they are validated before they are used as a path segment. This
+ * pattern cannot contain a separator, a dot segment, or a null byte, which makes a record name unable
+ * to address anything but a record.
+ */
+const TRASH_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FILE_DESCRIPTOR_ROOTS: Partial<Record<NodeJS.Platform, string>> = {
   linux: '/proc/self/fd',
   darwin: '/dev/fd',
@@ -63,6 +81,12 @@ interface FileIdentity {
   readonly inode: bigint;
 }
 
+/** A directory beside the address root, pinned by identity so a swap after setup is detected. */
+interface ServiceRoot {
+  readonly path: string;
+  readonly identity: FileIdentity;
+}
+
 interface OpenedEntry {
   readonly virtualPath: string;
   readonly handle: FileHandle;
@@ -92,17 +116,30 @@ export class LocalStorageAdapter extends StorageAdapter {
      * never resolved from a virtual path — only this class ever names it.
      */
     private readonly stagingRoot: string | undefined,
+    /**
+     * Where deleted content lives until it is restored or removed.
+     *
+     * Outside the address root for the same reason staging is: `P1-16` made the adapter's root the
+     * volume's browsable tree, so a user can neither browse their own trash as a folder nor collide
+     * with its name. Only this class ever names it.
+     */
+    private readonly trashRoot: ServiceRoot | undefined,
   ) {
     super();
   }
 
-  static async create(root: string, stagingRoot?: string): Promise<LocalStorageAdapter> {
+  static async create(root: string, stagingRoot?: string, trashRoot?: string): Promise<LocalStorageAdapter> {
     if (root.includes('\0') || !path.isAbsolute(root)) {
       throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Storage root must be an absolute path');
     }
 
-    if (stagingRoot !== undefined && (stagingRoot.includes('\0') || !path.isAbsolute(stagingRoot))) {
-      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Staging root must be an absolute path');
+    for (const [label, candidate] of [
+      ['Staging', stagingRoot],
+      ['Trash', trashRoot],
+    ] as const) {
+      if (candidate !== undefined && (candidate.includes('\0') || !path.isAbsolute(candidate))) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, `${label} root must be an absolute path`);
+      }
     }
 
     const descriptorRoot = FILE_DESCRIPTOR_ROOTS[process.platform];
@@ -133,14 +170,19 @@ export class LocalStorageAdapter extends StorageAdapter {
         throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Storage root changed during setup');
       }
 
-      const canonicalStagingRoot =
-        stagingRoot === undefined ? undefined : await LocalStorageAdapter.prepareStaging(stagingRoot, stats);
+      const staging =
+        stagingRoot === undefined
+          ? undefined
+          : await LocalStorageAdapter.prepareServiceRoot(stagingRoot, stats, 'Staging');
+      const canonicalTrashRoot =
+        trashRoot === undefined ? undefined : await LocalStorageAdapter.prepareServiceRoot(trashRoot, stats, 'Trash');
 
       return new LocalStorageAdapter(
         canonicalRoot,
         descriptorRoot,
         LocalStorageAdapter.identity(stats),
-        canonicalStagingRoot,
+        staging?.path,
+        canonicalTrashRoot,
       );
     } catch (error) {
       if (error instanceof LocalStorageAdapterError) {
@@ -156,33 +198,39 @@ export class LocalStorageAdapter extends StorageAdapter {
   }
 
   /**
-   * Validates the staging directory.
+   * Validates a service directory that sits beside the address root.
    *
-   * The same-filesystem check is the point: an atomic rename into the address root is only possible
-   * within one filesystem, so a staging directory on another one would silently turn every upload
-   * into a copy that can fail halfway. Better to refuse at construction than to discover it later.
+   * The same-filesystem check is the point, and it is the same point for both users of this. An
+   * atomic rename in or out of the address root is only possible within one filesystem, so a staging
+   * directory elsewhere would silently turn every upload into a copy that can fail halfway, and a
+   * trash directory elsewhere would turn every delete into one — which is precisely what ADR 0004
+   * says a delete must never become. Better to refuse at construction than to discover it later.
    */
-  private static async prepareStaging(stagingRoot: string, rootStats: BigIntStats): Promise<string> {
+  private static async prepareServiceRoot(
+    candidate: string,
+    rootStats: BigIntStats,
+    label: string,
+  ): Promise<ServiceRoot> {
     let canonical: string;
     try {
-      canonical = await fs.realpath(stagingRoot);
+      canonical = await fs.realpath(candidate);
     } catch {
-      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Staging root must exist');
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, `${label} root must exist`);
     }
 
     const stats = await fs.stat(canonical, { bigint: true });
     if (!stats.isDirectory()) {
-      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Staging root must be a directory');
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, `${label} root must be a directory`);
     }
 
     if (stats.dev !== rootStats.dev) {
       throw new LocalStorageAdapterError(
         LocalStorageErrorCode.InvalidRoot,
-        'Staging root must be on the same filesystem as the storage root',
+        `${label} root must be on the same filesystem as the storage root`,
       );
     }
 
-    return canonical;
+    return { path: canonical, identity: LocalStorageAdapter.identity(stats) };
   }
 
   override async stat(virtualPath: string): Promise<FileEntry | null> {
@@ -484,6 +532,277 @@ export class LocalStorageAdapter extends StorageAdapter {
     return this.write(targetPath, await this.open(sourcePath));
   }
 
+  /**
+   * Moves an entry into the volume's trash.
+   *
+   * The move is a `rename(2)` into a sibling directory, so a delete never becomes a copy however
+   * large the entry is, and a folder goes in whole rather than one child at a time. What the
+   * filesystem cannot carry — where the entry came from and when it left — goes into a sidecar
+   * manifest beside the record.
+   *
+   * The manifest is written before the rename. If the rename then fails, the manifest and the empty
+   * record are removed and the entry never left its place; the opposite order would risk content
+   * sitting in the trash with no record of where it belongs.
+   */
+  override async trash(virtualPath: string): Promise<TrashRecord> {
+    const trashRoot = this.requireTrashRoot();
+    const { normalized, parentPath, name } = this.splitPath(virtualPath);
+
+    const id = randomUUID();
+    const trashHandle = await this.openServiceRoot(trashRoot);
+    try {
+      const parent = await this.resolveRequired(parentPath);
+      try {
+        const entry = await this.openChild(parent.handle, name, false);
+        if (entry === null) {
+          throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Storage entry does not exist');
+        }
+
+        let record: TrashRecord;
+        try {
+          record = {
+            id,
+            name,
+            originalPath: normalized,
+            type: LocalStorageAdapter.toFileEntryType(entry.stats),
+            size: entry.stats.size,
+            deletedAt: new Date(),
+          };
+        } finally {
+          await entry.handle.close();
+        }
+
+        await this.writeTrashManifest(trashHandle, record);
+        try {
+          await fs.mkdir(this.descriptorChildPath(trashHandle, id), { mode: DIRECTORY_MODE });
+          const destination = await this.openChild(trashHandle, id, true, trashRoot.path);
+          if (destination === null) {
+            throw new LocalStorageAdapterError(
+              LocalStorageErrorCode.EntryChanged,
+              'Trash record changed during access',
+            );
+          }
+
+          try {
+            await fs.rename(
+              this.descriptorChildPath(parent.handle, name),
+              this.descriptorChildPath(destination.handle, name),
+            );
+          } finally {
+            await destination.handle.close();
+          }
+        } catch (error) {
+          await this.removeTrashRecord(trashHandle, id);
+
+          // The trash is a sibling of the address root, so this means the volume spans two mounts.
+          if (this.isErrno(error, 'EXDEV')) {
+            throw new LocalStorageAdapterError(
+              LocalStorageErrorCode.UnsupportedOperation,
+              'Storage entry cannot be moved to the trash across filesystems',
+            );
+          }
+          throw error;
+        }
+
+        return record;
+      } finally {
+        await parent.handle.close();
+      }
+    } finally {
+      await trashHandle.close();
+    }
+  }
+
+  /**
+   * Lists the trash, newest first.
+   *
+   * A record whose manifest is missing or unreadable is still listed, with an unknown original path.
+   * Hiding it would leave content that cannot be seen, restored, or removed — the one outcome the
+   * trash exists to prevent.
+   */
+  override async listTrash(): Promise<readonly TrashRecord[]> {
+    const trashRoot = this.requireTrashRoot();
+    const trashHandle = await this.openServiceRoot(trashRoot);
+
+    try {
+      const names = await fs.readdir(this.descriptorPath(trashHandle));
+      const records: TrashRecord[] = [];
+
+      for (const id of names) {
+        if (!TRASH_ID_PATTERN.test(id)) {
+          continue;
+        }
+
+        const record = await this.readTrashRecord(trashHandle, trashRoot, id);
+        if (record !== null) {
+          records.push(record);
+        }
+      }
+
+      return records.sort((left, right) => {
+        // A record without a manifest has no time to sort by, so it sorts last but stays visible.
+        const leftTime = left.deletedAt?.getTime() ?? -1;
+        const rightTime = right.deletedAt?.getTime() ?? -1;
+        return rightTime === leftTime ? compareNames(left.id, right.id) : rightTime - leftTime;
+      });
+    } finally {
+      await trashHandle.close();
+    }
+  }
+
+  /**
+   * Puts a record back, at its original path or at one the caller names.
+   *
+   * An occupied target is a conflict rather than a replacement, for the same reason a move refuses
+   * one. `targetPath` exists so that conflict is resolvable without an overwrite flag, and so a
+   * record whose manifest is unreadable can still be recovered somewhere.
+   */
+  override async restoreFromTrash(id: string, targetPath?: string): Promise<FileEntry> {
+    const trashRoot = this.requireTrashRoot();
+    this.assertTrashId(id);
+
+    const trashHandle = await this.openServiceRoot(trashRoot);
+    try {
+      const record = await this.readTrashRecord(trashHandle, trashRoot, id);
+      if (record === null) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Trash record does not exist');
+      }
+
+      const destination = targetPath ?? record.originalPath;
+      if (destination === null) {
+        throw new LocalStorageAdapterError(
+          LocalStorageErrorCode.InvalidPath,
+          'Trash record has no known original path, so a target path is required',
+        );
+      }
+
+      const target = this.splitPath(destination);
+      let restoredEntry: FileEntry;
+      const source = await this.openChild(trashHandle, id, true, trashRoot.path);
+      if (source === null) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryChanged, 'Trash record changed during access');
+      }
+
+      try {
+        const parent = await this.resolveRequired(target.parentPath);
+        try {
+          if (!parent.stats.isDirectory()) {
+            throw new LocalStorageAdapterError(
+              LocalStorageErrorCode.EntryNotDirectory,
+              'Storage parent is not a directory',
+            );
+          }
+
+          const occupied = await this.openChild(parent.handle, target.name, false);
+          if (occupied !== null) {
+            await occupied.handle.close();
+            throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage entry already exists');
+          }
+
+          await fs.rename(
+            this.descriptorChildPath(source.handle, record.name),
+            this.descriptorChildPath(parent.handle, target.name),
+          );
+
+          const restored = await this.openChild(parent.handle, target.name, false);
+          if (restored === null) {
+            throw new LocalStorageAdapterError(
+              LocalStorageErrorCode.EntryChanged,
+              'Storage entry changed during access',
+            );
+          }
+
+          try {
+            restoredEntry = this.toFileEntry(target.normalized, restored.stats);
+          } finally {
+            await restored.handle.close();
+          }
+        } finally {
+          await parent.handle.close();
+        }
+      } finally {
+        await source.handle.close();
+      }
+
+      // Only now, with the content out of the record, does the empty record go. Doing this in a
+      // `finally` would delete the record on a failed restore, which is the one thing a restore must
+      // never do — a rejected restore has to leave the entry recoverable.
+      await this.removeTrashRecord(trashHandle, id).catch(() => {
+        // The restore itself has succeeded, so failing to tidy up after it must not report failure.
+        // What is left is an empty record, which reconciliation removes and a purge can also remove.
+      });
+
+      return restoredEntry;
+    } finally {
+      await trashHandle.close();
+    }
+  }
+
+  /**
+   * Removes one record for good.
+   *
+   * Deliberately independent of whether the record can be *read*: it removes whatever sits under that
+   * identifier. A record the application cannot interpret — a damaged manifest, an unexpected shape —
+   * must still be removable, or the trash would accumulate content nothing can clear. Only the
+   * identifier is validated, so this can still name nothing but a record.
+   */
+  override async purgeFromTrash(id: string): Promise<void> {
+    const trashRoot = this.requireTrashRoot();
+    this.assertTrashId(id);
+
+    const trashHandle = await this.openServiceRoot(trashRoot);
+    try {
+      const directory = await this.openChild(trashHandle, id, true, trashRoot.path);
+      if (directory === null) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Trash record does not exist');
+      }
+      await directory.handle.close();
+
+      await this.removeTrashRecord(trashHandle, id);
+    } finally {
+      await trashHandle.close();
+    }
+  }
+
+  /**
+   * Removes every record, continuing past the ones it cannot.
+   *
+   * A single record the filesystem refuses to remove would otherwise make the trash permanently
+   * un-emptiable, so the failure is counted and reported rather than raised.
+   */
+  override async emptyTrash(): Promise<TrashPurgeResult> {
+    const trashRoot = this.requireTrashRoot();
+    const trashHandle = await this.openServiceRoot(trashRoot);
+
+    try {
+      const names = await fs.readdir(this.descriptorPath(trashHandle));
+      let removed = 0;
+      let failed = 0;
+
+      // A manifest without its directory is possible: a delete interrupted between writing the one
+      // and creating the other leaves it behind. Both spellings map to the same identifier here, so
+      // emptying clears that too instead of leaving a file nothing else will ever look at.
+      const ids = new Set(
+        names
+          .map((name) => (name.endsWith('.json') ? name.slice(0, -'.json'.length) : name))
+          .filter((name) => TRASH_ID_PATTERN.test(name)),
+      );
+
+      for (const id of ids) {
+        try {
+          await this.removeTrashRecord(trashHandle, id);
+          removed++;
+        } catch {
+          failed++;
+        }
+      }
+
+      return { removed, failed };
+    } finally {
+      await trashHandle.close();
+    }
+  }
+
   override delete(virtualPath: string, options?: StorageDeleteOptions): Promise<void> {
     void virtualPath;
     void options;
@@ -565,7 +884,12 @@ export class LocalStorageAdapter extends StorageAdapter {
     }
   }
 
-  private async openChild(parent: FileHandle, name: string, requireDirectory: boolean): Promise<OpenedChild | null> {
+  private async openChild(
+    parent: FileHandle,
+    name: string,
+    requireDirectory: boolean,
+    base: string = this.root,
+  ): Promise<OpenedChild | null> {
     const candidatePath = this.descriptorChildPath(parent, name);
 
     let before: BigIntStats;
@@ -609,7 +933,7 @@ export class LocalStorageAdapter extends StorageAdapter {
       }
 
       const canonicalPath = await fs.realpath(this.descriptorPath(handle));
-      this.assertContained(canonicalPath);
+      this.assertContained(canonicalPath, base);
 
       return {
         handle,
@@ -659,8 +983,8 @@ export class LocalStorageAdapter extends StorageAdapter {
     return segments.length === 0 ? '/' : `/${segments.join('/')}`;
   }
 
-  private assertContained(canonicalPath: string): void {
-    const relativePath = path.relative(this.root, canonicalPath);
+  private assertContained(canonicalPath: string, base: string = this.root): void {
+    const relativePath = path.relative(base, canonicalPath);
     if (relativePath === '') {
       return;
     }
@@ -797,6 +1121,171 @@ export class LocalStorageAdapter extends StorageAdapter {
     this.joinVirtualPath(parentPath, name);
 
     return { normalized, parentPath, name };
+  }
+
+  private requireTrashRoot(): ServiceRoot {
+    if (this.trashRoot === undefined) {
+      throw new LocalStorageAdapterError(
+        LocalStorageErrorCode.UnsupportedOperation,
+        'Storage adapter has no trash directory',
+      );
+    }
+
+    return this.trashRoot;
+  }
+
+  private assertTrashId(id: string): void {
+    if (!TRASH_ID_PATTERN.test(id)) {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Invalid trash record identifier');
+    }
+  }
+
+  /**
+   * Opens a service root the same way the address root is opened.
+   *
+   * Identity is compared against what construction saw, so a directory replaced underneath us after
+   * setup is detected rather than followed, and everything below is addressed through this descriptor.
+   */
+  private async openServiceRoot(root: ServiceRoot): Promise<FileHandle> {
+    let handle: FileHandle | undefined;
+    try {
+      handle = await fs.open(root.path, DIRECTORY_OPEN_FLAGS);
+      const stats = await handle.stat({ bigint: true });
+      if (!stats.isDirectory() || !LocalStorageAdapter.sameIdentity(root.identity, stats)) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Service root changed after setup');
+      }
+
+      const openedPath = await fs.realpath(this.descriptorPath(handle));
+      if (openedPath !== root.path) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Service root changed after setup');
+      }
+
+      return handle;
+    } catch (error) {
+      if (handle !== undefined) {
+        await handle.close();
+      }
+      if (error instanceof LocalStorageAdapterError) {
+        throw error;
+      }
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidRoot, 'Service root cannot be opened safely');
+    }
+  }
+
+  private trashManifestName(id: string): string {
+    return `${id}.json`;
+  }
+
+  private async writeTrashManifest(trashHandle: FileHandle, record: TrashRecord): Promise<void> {
+    const manifest = {
+      version: TRASH_MANIFEST_VERSION,
+      originalPath: record.originalPath,
+      name: record.name,
+      type: record.type,
+      deletedAt: record.deletedAt?.toISOString() ?? null,
+    };
+
+    // Exclusive create: the identifier is generated here, so an existing manifest means something is
+    // wrong with the trash rather than that this delete should proceed over it.
+    await fs.writeFile(
+      this.descriptorChildPath(trashHandle, this.trashManifestName(record.id)),
+      JSON.stringify(manifest, undefined, 2),
+      { mode: FILE_MODE, flag: 'wx' },
+    );
+  }
+
+  /**
+   * Reads one record, or returns null when there is no content under that identifier.
+   *
+   * The content is authoritative and the manifest is advisory: a record whose manifest is missing,
+   * unparseable, or names something that is not a usable entry name is reported with an unknown
+   * origin rather than dropped, because it still holds bytes somebody may want back.
+   */
+  private async readTrashRecord(
+    trashHandle: FileHandle,
+    trashRoot: ServiceRoot,
+    id: string,
+  ): Promise<TrashRecord | null> {
+    const directory = await this.openChild(trashHandle, id, true, trashRoot.path);
+    if (directory === null) {
+      return null;
+    }
+
+    try {
+      const children = await fs.readdir(this.descriptorPath(directory.handle));
+      const [name] = children;
+      if (children.length !== 1 || name === undefined) {
+        return null;
+      }
+
+      const entry = await this.openChild(directory.handle, name, false, trashRoot.path);
+      if (entry === null) {
+        return null;
+      }
+
+      try {
+        const manifest = await this.readTrashManifest(trashHandle, id);
+
+        return {
+          id,
+          name,
+          originalPath: manifest?.originalPath ?? null,
+          type: LocalStorageAdapter.toFileEntryType(entry.stats),
+          size: entry.stats.size,
+          deletedAt: manifest?.deletedAt ?? null,
+        };
+      } finally {
+        await entry.handle.close();
+      }
+    } finally {
+      await directory.handle.close();
+    }
+  }
+
+  private async readTrashManifest(
+    trashHandle: FileHandle,
+    id: string,
+  ): Promise<{ originalPath: string | null; deletedAt: Date | null } | null> {
+    let raw: string;
+    try {
+      raw = await fs.readFile(this.descriptorChildPath(trashHandle, this.trashManifestName(id)), 'utf8');
+    } catch {
+      return null;
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null) {
+        return null;
+      }
+
+      const { originalPath, deletedAt } = parsed as { originalPath?: unknown; deletedAt?: unknown };
+      const deleted = typeof deletedAt === 'string' ? new Date(deletedAt) : null;
+
+      return {
+        // Validated rather than trusted: a tampered manifest must not be able to name a path outside
+        // the address space, so anything the normal rules reject is reported as unknown instead.
+        originalPath: typeof originalPath === 'string' && this.isAddressablePath(originalPath) ? originalPath : null,
+        deletedAt: deleted !== null && !Number.isNaN(deleted.getTime()) ? deleted : null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private isAddressablePath(candidate: string): boolean {
+    try {
+      this.splitPath(candidate);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Removes a record's content and its manifest. Both are forced, so a partial record still goes. */
+  private async removeTrashRecord(trashHandle: FileHandle, id: string): Promise<void> {
+    await fs.rm(this.descriptorChildPath(trashHandle, id), { recursive: true, force: true });
+    await fs.rm(this.descriptorChildPath(trashHandle, this.trashManifestName(id)), { force: true });
   }
 
   private descriptorPath(handle: FileHandle): string {

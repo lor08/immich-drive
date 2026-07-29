@@ -397,6 +397,14 @@ class ApiClient {
           return FileFolderCreateDto.fromJson(value);
         case 'FileMoveDto':
           return FileMoveDto.fromJson(value);
+        case 'FileTrashEmptyDto':
+          return FileTrashEmptyDto.fromJson(value);
+        case 'FileTrashPurgeResponseDto':
+          return FileTrashPurgeResponseDto.fromJson(value);
+        case 'FileTrashRecordResponseDto':
+          return FileTrashRecordResponseDto.fromJson(value);
+        case 'FileTrashRestoreDto':
+          return FileTrashRestoreDto.fromJson(value);
         case 'FileVolumeAccess':
           return FileVolumeAccessTypeTransformer().decode(value);
         case 'FileVolumeKind':
