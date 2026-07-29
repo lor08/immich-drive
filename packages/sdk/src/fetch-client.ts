@@ -1215,10 +1215,26 @@ export type FileEntryResponseDto = {
     size: number;
     "type": FileEntryType;
 };
+export type FileCopyDto = {
+    /** Virtual path of the file to copy. Directories are not supported. */
+    sourcePath: string;
+    /** Virtual path the copy is written to. Its parent must already exist and must be free. */
+    targetPath: string;
+    /** Volume holding both the source and the target */
+    volumeId: string;
+};
 export type FileFolderCreateDto = {
     /** Virtual path of the folder to create. The parent must already exist. */
     path: string;
     /** Volume to create the folder in */
+    volumeId: string;
+};
+export type FileMoveDto = {
+    /** Virtual path of the entry to move */
+    sourcePath: string;
+    /** Virtual path the entry is moved to. Its parent must already exist and must be free. */
+    targetPath: string;
+    /** Volume holding both the source and the target */
     volumeId: string;
 };
 export type FileVolumeResponseDto = {
@@ -4844,6 +4860,21 @@ export function uploadFile({ overwrite, path, volumeId, body }: {
     }));
 }
 /**
+ * Copy a file
+ */
+export function copyFileEntry({ fileCopyDto }: {
+    fileCopyDto: FileCopyDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: FileEntryResponseDto;
+    }>("/files/copy", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileCopyDto
+    })));
+}
+/**
  * Download a file
  */
 export function downloadFile({ path, volumeId }: {
@@ -4890,6 +4921,18 @@ export function createFileFolder({ fileFolderCreateDto }: {
         ...opts,
         method: "POST",
         body: fileFolderCreateDto
+    })));
+}
+/**
+ * Move or rename an entry
+ */
+export function moveFileEntry({ fileMoveDto }: {
+    fileMoveDto: FileMoveDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/files/move", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileMoveDto
     })));
 }
 /**
@@ -7322,6 +7365,7 @@ export enum Permission {
     FileDownload = "file.download",
     FileCreate = "file.create",
     FileUpload = "file.upload",
+    FileUpdate = "file.update",
     FolderRead = "folder.read",
     JobCreate = "job.create",
     JobRead = "job.read",

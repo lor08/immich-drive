@@ -11,7 +11,27 @@ import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 /** Runs the handler directly: the lock's own behaviour is covered by its unit tests and a live check. */
 const passthroughLocks = {
   withPathLock: (_volumeId: string, _path: string, handler: () => Promise<unknown>) => handler(),
+  withPathLocks: (_volumeId: string, _paths: readonly string[], handler: () => Promise<unknown>) => handler(),
 } as unknown as PathLock;
+
+/**
+ * Records which paths each operation locked.
+ *
+ * Whether the lock actually excludes anything is the lock's own concern; which paths an operation
+ * covers is the service's, and a move that locked only its target would race with a move of its
+ * source without any test noticing.
+ */
+const recordingLocks = (locked: string[][]) =>
+  ({
+    withPathLock: (_volumeId: string, path: string, handler: () => Promise<unknown>) => {
+      locked.push([path]);
+      return handler();
+    },
+    withPathLocks: (_volumeId: string, paths: readonly string[], handler: () => Promise<unknown>) => {
+      locked.push([...paths]);
+      return handler();
+    },
+  }) as unknown as PathLock;
 
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 const OTHER_OWNER = '5f2b9c4e-0000-4000-8000-000000000002';
@@ -86,6 +106,37 @@ describe(FileDomainService.name, () => {
     await expect(sut.openFile(OWNER, PRIVATE_VOLUME_ID, '/missing.txt')).rejects.toMatchObject({
       code: 'entry-not-found',
     });
+  });
+
+  it('moves an entry while holding the lock on both paths', async () => {
+    const locked: string[][] = [];
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const [volume] = await service.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+
+    await service.moveEntry(OWNER, PRIVATE_VOLUME_ID, '/report.txt', '/final.txt');
+
+    expect(locked).toEqual([['/report.txt', '/final.txt']]);
+    await expect(fs.readdir(volume.filesPath)).resolves.toEqual(['final.txt']);
+  });
+
+  it('copies a file while holding the lock on both paths', async () => {
+    const locked: string[][] = [];
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const [volume] = await service.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+
+    const entry = await service.copyEntry(OWNER, PRIVATE_VOLUME_ID, '/report.txt', '/copy.txt');
+
+    expect(locked).toEqual([['/report.txt', '/copy.txt']]);
+    expect(entry).toMatchObject({ path: '/copy.txt', size: 8 });
+    await expect(fs.readFile(path.join(volume.filesPath, 'copy.txt'), 'utf8')).resolves.toBe('contents');
+  });
+
+  it('cannot move an entry out of a volume the owner cannot address', async () => {
+    const other = new FileDomainService(new VolumeRegistry({ storageRoot, sharedSpace: 'family' }), passthroughLocks);
+
+    await expect(other.moveEntry(OWNER, 'shared:other', '/a.txt', '/b.txt')).rejects.toThrow();
   });
 
   it('reports that file storage is not enabled when the domain is unconfigured', async () => {

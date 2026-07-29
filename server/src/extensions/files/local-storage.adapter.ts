@@ -208,17 +208,7 @@ export class LocalStorageAdapter extends StorageAdapter {
    * quietly succeeding.
    */
   override async createDirectory(virtualPath: string): Promise<FileEntry> {
-    const normalizedPath = this.normalizeVirtualPath(virtualPath);
-    if (normalizedPath === '/') {
-      throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage root already exists');
-    }
-
-    const separator = normalizedPath.lastIndexOf('/');
-    const parentPath = separator === 0 ? '/' : normalizedPath.slice(0, separator);
-    const name = normalizedPath.slice(separator + 1);
-
-    // Validates the segment by the same rules as every other name, and throws if it is unusable.
-    this.joinVirtualPath(parentPath, name);
+    const { normalized: normalizedPath, parentPath, name } = this.splitPath(virtualPath);
 
     const parent = await this.resolveRequired(parentPath);
     try {
@@ -324,27 +314,12 @@ export class LocalStorageAdapter extends StorageAdapter {
     content: AsyncIterable<Uint8Array>,
     options?: StorageWriteOptions,
   ): Promise<FileEntry> {
-    if (this.stagingRoot === undefined) {
-      throw new LocalStorageAdapterError(
-        LocalStorageErrorCode.UnsupportedOperation,
-        'Writing requires a staging directory',
-      );
-    }
+    const stagingRoot = this.requireStagingRoot();
 
-    const normalizedPath = this.normalizeVirtualPath(virtualPath);
-    if (normalizedPath === '/') {
-      throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage root is not a file');
-    }
-
-    const separator = normalizedPath.lastIndexOf('/');
-    const parentPath = separator === 0 ? '/' : normalizedPath.slice(0, separator);
-    const name = normalizedPath.slice(separator + 1);
-
-    // Validates the segment by the same rules as every other name.
-    this.joinVirtualPath(parentPath, name);
+    const { normalized: normalizedPath, parentPath, name } = this.splitPath(virtualPath);
 
     const parent = await this.resolveRequired(parentPath);
-    const stagingPath = path.join(this.stagingRoot, `upload-${randomUUID()}`);
+    const stagingPath = path.join(stagingRoot, `upload-${randomUUID()}`);
 
     try {
       if (!parent.stats.isDirectory()) {
@@ -400,16 +375,113 @@ export class LocalStorageAdapter extends StorageAdapter {
     }
   }
 
-  override move(sourcePath: string, targetPath: string): Promise<void> {
-    void sourcePath;
-    void targetPath;
-    return Promise.reject(this.unsupported('move'));
+  /**
+   * Moves an entry, which also covers renaming when the parent does not change.
+   *
+   * Both parents are resolved through descriptors and the rename addresses them through those, so
+   * neither side can be substituted between validation and the operation. An existing target is a
+   * conflict rather than a silent replacement: overwriting during a move has cases that cannot be
+   * done atomically, such as a target directory that is not empty, and no caller needs it.
+   */
+  override async move(sourcePath: string, targetPath: string): Promise<void> {
+    // A rename needs no staging, but the staging root is what marks this adapter able to modify
+    // content at all, so a read-only volume refuses a move for the same reason it refuses a write.
+    this.requireStagingRoot();
+
+    const source = this.splitPath(sourcePath);
+    const target = this.splitPath(targetPath);
+
+    // Refused before touching the filesystem, so the caller gets our error instead of a bare errno.
+    if (target.normalized.startsWith(`${source.normalized}/`)) {
+      throw new LocalStorageAdapterError(
+        LocalStorageErrorCode.InvalidPath,
+        'Storage entry cannot be moved inside itself',
+      );
+    }
+
+    const sourceParent = await this.resolveRequired(source.parentPath);
+    try {
+      const existing = await this.openChild(sourceParent.handle, source.name, false);
+      if (existing === null) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Storage entry does not exist');
+      }
+      await existing.handle.close();
+
+      // Nothing to do — but only once there is something to do nothing with. Reporting success for a
+      // path that holds nothing would tell the caller their entry is at the target when none exists.
+      if (source.normalized === target.normalized) {
+        return;
+      }
+
+      const targetParent = await this.resolveRequired(target.parentPath);
+      try {
+        if (!targetParent.stats.isDirectory()) {
+          throw new LocalStorageAdapterError(
+            LocalStorageErrorCode.EntryNotDirectory,
+            'Storage parent is not a directory',
+          );
+        }
+
+        // `rename` would replace this without asking, so the target is checked first. The path lock
+        // held by the caller is what makes the gap between the check and the rename safe.
+        const occupied = await this.openChild(targetParent.handle, target.name, false);
+        if (occupied !== null) {
+          await occupied.handle.close();
+          throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryExists, 'Storage entry already exists');
+        }
+
+        try {
+          await fs.rename(
+            this.descriptorChildPath(sourceParent.handle, source.name),
+            this.descriptorChildPath(targetParent.handle, target.name),
+          );
+        } catch (error) {
+          // Reachable inside one volume: a subdirectory can be a separate mount.
+          if (this.isErrno(error, 'EXDEV')) {
+            throw new LocalStorageAdapterError(
+              LocalStorageErrorCode.UnsupportedOperation,
+              'Storage entry cannot be moved across filesystems',
+            );
+          }
+          throw error;
+        }
+      } finally {
+        await targetParent.handle.close();
+      }
+    } finally {
+      await sourceParent.handle.close();
+    }
   }
 
-  override copy(sourcePath: string, targetPath: string): Promise<FileEntry> {
-    void sourcePath;
-    void targetPath;
-    return Promise.reject(this.unsupported('copy'));
+  /**
+   * Copies one file.
+   *
+   * A directory is refused: copying a tree is an open-ended operation that can fail halfway and needs
+   * progress and cancellation, which belongs to a background job rather than to a request. The copy
+   * goes through the same staged write as an upload, so a partial copy is never visible at the target.
+   */
+  override async copy(sourcePath: string, targetPath: string): Promise<FileEntry> {
+    // Checked before resolving anything, so a read-only volume answers the same way whether or not
+    // the source happens to exist.
+    this.requireStagingRoot();
+
+    const source = await this.resolveRequired(this.normalizeVirtualPath(sourcePath));
+    try {
+      // Reported as "not a file" rather than as an unsupported operation, so the client sees a
+      // rejected request instead of a server fault: the endpoint's subject is a file.
+      if (source.stats.isDirectory()) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFile, 'Copying a directory is not supported');
+      }
+      if (!source.stats.isFile()) {
+        throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFile, 'Storage entry is not a regular file');
+      }
+    } finally {
+      await source.handle.close();
+    }
+
+    // Re-opened rather than streamed from the handle above, because `open` is the one place that
+    // pins a file for reading, and the target is written before either path is reported.
+    return this.write(targetPath, await this.open(sourcePath));
   }
 
   override delete(virtualPath: string, options?: StorageDeleteOptions): Promise<void> {
@@ -686,6 +758,45 @@ export class LocalStorageAdapter extends StorageAdapter {
     } finally {
       await entry.handle.close();
     }
+  }
+
+  /**
+   * Refuses every modification when no staging directory was configured.
+   *
+   * A staged write is the only way this adapter publishes content, so an adapter without a staging
+   * root is read-only by construction rather than by a separate flag that could disagree with it.
+   */
+  private requireStagingRoot(): string {
+    if (this.stagingRoot === undefined) {
+      throw new LocalStorageAdapterError(
+        LocalStorageErrorCode.UnsupportedOperation,
+        'Storage adapter has no staging directory and cannot modify content',
+      );
+    }
+
+    return this.stagingRoot;
+  }
+
+  /**
+   * Splits an addressable path into its parent and its final segment, validating both.
+   *
+   * Every mutation names an entry inside a directory, so the root is rejected here: it has no name
+   * and no parent, which makes it unusable as the subject of a create, a write or a move. The final
+   * segment goes through the same validation as every other name.
+   */
+  private splitPath(virtualPath: string): { normalized: string; parentPath: string; name: string } {
+    const normalized = this.normalizeVirtualPath(virtualPath);
+    if (normalized === '/') {
+      throw new LocalStorageAdapterError(LocalStorageErrorCode.InvalidPath, 'Storage root cannot be named directly');
+    }
+
+    const separator = normalized.lastIndexOf('/');
+    const parentPath = separator === 0 ? '/' : normalized.slice(0, separator);
+    const name = normalized.slice(separator + 1);
+
+    this.joinVirtualPath(parentPath, name);
+
+    return { normalized, parentPath, name };
   }
 
   private descriptorPath(handle: FileHandle): string {

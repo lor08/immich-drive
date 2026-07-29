@@ -1,5 +1,5 @@
 import { DatabaseLock } from 'src/enum';
-import { pathLockId } from 'src/extensions/files/path-lock';
+import { orderedPathLockIds, pathLockId } from 'src/extensions/files/path-lock';
 
 describe('pathLockId', () => {
   it('is deterministic for the same volume and path', () => {
@@ -35,5 +35,35 @@ describe('pathLockId', () => {
     const immichKeys = new Set(Object.values(DatabaseLock).filter((value) => typeof value === 'number'));
 
     expect(immichKeys.size).toBeGreaterThan(0);
+  });
+});
+
+describe('orderedPathLockIds', () => {
+  it('orders a pair the same way whichever direction the operation runs', () => {
+    // The case that would deadlock: two requests swapping the same two paths.
+    expect(orderedPathLockIds('private', ['/a', '/b'])).toEqual(orderedPathLockIds('private', ['/b', '/a']));
+  });
+
+  it('collapses a path named twice into one key', () => {
+    expect(orderedPathLockIds('private', ['/a', '/a'])).toEqual([pathLockId('private', '/a')]);
+  });
+
+  it('never repeats a key, which is what a colliding pair of paths would otherwise produce', () => {
+    // A real collision cannot be forced through SHA-256, so the property is asserted on the output:
+    // whatever the input, one key appears once and therefore needs one release.
+    const ids = orderedPathLockIds('private', ['/a', '/b', '/c', '/a', '/b']);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('keeps every key ascending, which is what makes acquisition order deterministic', () => {
+    const ids = orderedPathLockIds('private', ['/z', '/a', '/m', '/deeply/nested/name.txt']);
+
+    expect(ids).toEqual([...ids].sort((left, right) => left - right));
+    expect(ids).toHaveLength(4);
+  });
+
+  it('returns one key for one path, so a single-path operation is unchanged', () => {
+    expect(orderedPathLockIds('private', ['/a'])).toEqual([pathLockId('private', '/a')]);
   });
 });

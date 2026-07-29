@@ -421,7 +421,7 @@ describe(LocalStorageAdapter.name, () => {
 
     it('refuses the storage root itself', async () => {
       await expect(adapter.createDirectory('/')).rejects.toMatchObject({
-        code: LocalStorageErrorCode.EntryExists,
+        code: LocalStorageErrorCode.InvalidPath,
       });
     });
 
@@ -460,6 +460,277 @@ describe(LocalStorageAdapter.name, () => {
       });
 
       await expect(fs.readdir(outside)).resolves.toEqual([]);
+    });
+  });
+
+  describe('move', () => {
+    let staging: string;
+    let writable: LocalStorageAdapter;
+
+    beforeEach(async () => {
+      staging = path.join(workspace, 'staging');
+      await fs.mkdir(staging);
+      writable = await LocalStorageAdapter.create(root, staging);
+
+      await fs.mkdir(path.join(root, 'documents'));
+      await fs.writeFile(path.join(root, 'documents', 'report.txt'), 'contents');
+    });
+
+    it('renames a file in place', async () => {
+      await writable.move('/documents/report.txt', '/documents/final.txt');
+
+      await expect(fs.readdir(path.join(root, 'documents'))).resolves.toEqual(['final.txt']);
+      await expect(fs.readFile(path.join(root, 'documents', 'final.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('renames a directory with its contents', async () => {
+      await writable.move('/documents', '/archive');
+
+      await expect(fs.readFile(path.join(root, 'archive', 'report.txt'), 'utf8')).resolves.toBe('contents');
+      await expect(fs.readdir(root)).resolves.toEqual(['archive']);
+    });
+
+    it('moves a file into another directory', async () => {
+      await fs.mkdir(path.join(root, 'archive'));
+
+      await writable.move('/documents/report.txt', '/archive/report.txt');
+
+      await expect(fs.readdir(path.join(root, 'documents'))).resolves.toEqual([]);
+      await expect(fs.readFile(path.join(root, 'archive', 'report.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('accepts a move onto itself without touching anything', async () => {
+      const before = await fs.stat(path.join(root, 'documents', 'report.txt'));
+
+      await expect(writable.move('/documents/report.txt', '/documents/report.txt')).resolves.toBeUndefined();
+
+      const after = await fs.stat(path.join(root, 'documents', 'report.txt'));
+      expect(after.ino).toBe(before.ino);
+    });
+
+    it('refuses a move onto itself when nothing is there', async () => {
+      await expect(writable.move('/documents/missing.txt', '/documents/missing.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+    });
+
+    it('refuses a missing source', async () => {
+      await expect(writable.move('/documents/missing.txt', '/documents/final.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+    });
+
+    it('refuses a missing target parent', async () => {
+      await expect(writable.move('/documents/report.txt', '/archive/report.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(path.join(root, 'documents'))).resolves.toEqual(['report.txt']);
+    });
+
+    it('refuses a target parent that is a file', async () => {
+      await fs.writeFile(path.join(root, 'note.txt'), 'note');
+
+      await expect(writable.move('/note.txt', '/documents/report.txt/nested')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotDirectory,
+      });
+
+      await expect(fs.readFile(path.join(root, 'note.txt'), 'utf8')).resolves.toBe('note');
+    });
+
+    it.each([
+      ['a file', async (target: string) => fs.writeFile(target, 'other')],
+      ['a directory', async (target: string) => fs.mkdir(target)],
+    ])('refuses an occupied target, when it is %s, without replacing it', async (_label, create) => {
+      await create(path.join(root, 'occupied'));
+
+      await expect(writable.move('/documents/report.txt', '/occupied')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+
+      await expect(fs.readFile(path.join(root, 'documents', 'report.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('refuses to move a directory inside itself', async () => {
+      await expect(writable.move('/documents', '/documents/nested')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.InvalidPath,
+      });
+
+      await expect(fs.readdir(path.join(root, 'documents'))).resolves.toEqual(['report.txt']);
+    });
+
+    it.each(['relative', '/', '/documents/../escape', '/nul\0byte'])(
+      'refuses the source path %j without changing anything',
+      async (badPath) => {
+        await expect(writable.move(badPath, '/final.txt')).rejects.toBeInstanceOf(LocalStorageAdapterError);
+
+        await expect(fs.readdir(root)).resolves.toEqual(['documents']);
+      },
+    );
+
+    it.each(['relative', '/', '/documents/../escape', '/nul\0byte'])(
+      'refuses the target path %j without changing anything',
+      async (badPath) => {
+        await expect(writable.move('/documents/report.txt', badPath)).rejects.toBeInstanceOf(LocalStorageAdapterError);
+
+        await expect(fs.readdir(path.join(root, 'documents'))).resolves.toEqual(['report.txt']);
+      },
+    );
+
+    it('cannot move an entry outside the root through a symlinked target parent', async () => {
+      const outside = path.join(workspace, 'outside');
+      await fs.mkdir(outside);
+      await fs.symlink(outside, path.join(root, 'escape'));
+
+      await expect(writable.move('/documents/report.txt', '/escape/report.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.SymlinkNotAllowed,
+      });
+
+      await expect(fs.readdir(outside)).resolves.toEqual([]);
+    });
+
+    it('cannot move an entry from outside the root through a symlinked source parent', async () => {
+      const outside = path.join(workspace, 'outside');
+      await fs.mkdir(outside);
+      await fs.writeFile(path.join(outside, 'secret.txt'), 'secret');
+      await fs.symlink(outside, path.join(root, 'escape'));
+
+      await expect(writable.move('/escape/secret.txt', '/secret.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.SymlinkNotAllowed,
+      });
+
+      await expect(fs.readdir(outside)).resolves.toEqual(['secret.txt']);
+    });
+
+    it('closes every descriptor across success and failure', async () => {
+      await fs.mkdir(path.join(root, 'archive'));
+
+      // Warm up first, so descriptors the runtime opens lazily are not attributed to the adapter.
+      await writable.move('/documents/report.txt', '/archive/report.txt');
+      await writable.move('/archive/report.txt', '/documents/report.txt');
+      const before = await countOpenDescriptors();
+
+      for (let round = 0; round < 5; round++) {
+        await writable.move('/documents/report.txt', '/archive/report.txt');
+        await writable.move('/archive/report.txt', '/documents/report.txt');
+        await expect(writable.move('/documents/missing.txt', '/archive/missing.txt')).rejects.toBeInstanceOf(
+          LocalStorageAdapterError,
+        );
+        await expect(writable.move('/documents', '/archive')).rejects.toBeInstanceOf(LocalStorageAdapterError);
+      }
+
+      await expect(countOpenDescriptors()).resolves.toBeLessThanOrEqual(before);
+    });
+  });
+
+  describe('copy', () => {
+    let staging: string;
+    let writable: LocalStorageAdapter;
+
+    beforeEach(async () => {
+      staging = path.join(workspace, 'staging');
+      await fs.mkdir(staging);
+      writable = await LocalStorageAdapter.create(root, staging);
+
+      await fs.mkdir(path.join(root, 'documents'));
+      await fs.writeFile(path.join(root, 'documents', 'report.txt'), 'contents');
+    });
+
+    it('copies a file and reports the copy', async () => {
+      const entry = await writable.copy('/documents/report.txt', '/documents/report-copy.txt');
+
+      expect(entry).toMatchObject({
+        path: '/documents/report-copy.txt',
+        name: 'report-copy.txt',
+        type: FileEntryType.File,
+        size: 8,
+      });
+      await expect(fs.readFile(path.join(root, 'documents', 'report-copy.txt'), 'utf8')).resolves.toBe('contents');
+      await expect(fs.readFile(path.join(root, 'documents', 'report.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
+    it('leaves nothing in staging after success', async () => {
+      await writable.copy('/documents/report.txt', '/copy.txt');
+
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('creates the copy owner-only, whatever the source mode', async () => {
+      await fs.chmod(path.join(root, 'documents', 'report.txt'), 0o644);
+
+      await writable.copy('/documents/report.txt', '/copy.txt');
+
+      const { mode } = await fs.stat(path.join(root, 'copy.txt'));
+      expect(mode & 0o777).toBe(0o600);
+    });
+
+    it('refuses a directory', async () => {
+      await expect(writable.copy('/documents', '/archive')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFile,
+      });
+
+      await expect(fs.readdir(root)).resolves.toEqual(['documents']);
+    });
+
+    it('refuses an occupied target without replacing it', async () => {
+      await fs.writeFile(path.join(root, 'copy.txt'), 'other');
+
+      await expect(writable.copy('/documents/report.txt', '/copy.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryExists,
+      });
+
+      await expect(fs.readFile(path.join(root, 'copy.txt'), 'utf8')).resolves.toBe('other');
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('refuses a missing source without leaving a partial target', async () => {
+      await expect(writable.copy('/documents/missing.txt', '/copy.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(root)).resolves.toEqual(['documents']);
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('refuses a missing target parent without leaving anything in staging', async () => {
+      await expect(writable.copy('/documents/report.txt', '/archive/copy.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.EntryNotFound,
+      });
+
+      await expect(fs.readdir(staging)).resolves.toEqual([]);
+    });
+
+    it('cannot read a file from outside the root through a symlink', async () => {
+      const outside = path.join(workspace, 'outside');
+      await fs.mkdir(outside);
+      await fs.writeFile(path.join(outside, 'secret.txt'), 'secret');
+      await fs.symlink(path.join(outside, 'secret.txt'), path.join(root, 'escape.txt'));
+
+      await expect(writable.copy('/escape.txt', '/copy.txt')).rejects.toMatchObject({
+        code: LocalStorageErrorCode.SymlinkNotAllowed,
+      });
+
+      await expect(fs.readdir(root)).resolves.toEqual(['documents', 'escape.txt']);
+    });
+
+    it('closes every descriptor across success and failure', async () => {
+      // Warm up first, so descriptors the runtime opens lazily are not attributed to the adapter.
+      await writable.copy('/documents/report.txt', '/warm.txt');
+      const before = await countOpenDescriptors();
+
+      for (let round = 0; round < 5; round++) {
+        await writable.copy('/documents/report.txt', `/copy-${round}.txt`);
+        await expect(writable.copy('/documents', '/archive')).rejects.toBeInstanceOf(LocalStorageAdapterError);
+        await expect(writable.copy('/documents/missing.txt', '/missing-copy.txt')).rejects.toBeInstanceOf(
+          LocalStorageAdapterError,
+        );
+        // Fails after the source is opened, which is the case that could leave a reader behind.
+        await expect(writable.copy('/documents/report.txt', '/warm.txt')).rejects.toBeInstanceOf(
+          LocalStorageAdapterError,
+        );
+      }
+
+      await expect(countOpenDescriptors()).resolves.toBeLessThanOrEqual(before);
     });
   });
 
