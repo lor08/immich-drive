@@ -24,6 +24,18 @@ export interface VolumeIdentity {
   readonly markerId: string | null;
 }
 
+/**
+ * What the volume root says about itself right now, without changing any of it.
+ *
+ * `markerPresent` is separate from `markerId` because "there is no marker" and "there is a marker I
+ * cannot read" are different health findings, and neither may be repaired by the act of looking: a
+ * health check that wrote the missing marker would report a healthy volume every time and could never
+ * fail.
+ */
+export interface VolumeInspection extends VolumeIdentity {
+  readonly markerPresent: boolean;
+}
+
 const errorCode = (error: unknown): string | undefined =>
   typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : undefined;
 
@@ -84,19 +96,32 @@ const ensureMarkerId = async (file: string): Promise<string | null> => {
   }
 };
 
+const rootIdentity = async (rootPath: string): Promise<{ device: string; inode: string }> => {
+  const stats = await fs.stat(rootPath, { bigint: true });
+
+  return { device: stats.dev.toString(), inode: stats.ino.toString() };
+};
+
 /**
  * The identity of one volume, initialising its marker on first use.
  *
- * `P1-04` records this; `P1-06` is what acts on it. Nothing here compares the identity against what
- * the index already holds, because a mismatch is a health decision and health gates removals — the
- * one thing this task must not start doing on its own.
+ * Used by the index when it records a volume. Nothing here compares the identity against what the
+ * index already holds, because a mismatch is a health decision, health gates removals, and the code
+ * that writes the marker must not also be the code that judges it.
  */
-export const readVolumeIdentity = async (rootPath: string): Promise<VolumeIdentity> => {
-  const stats = await fs.stat(rootPath, { bigint: true });
+export const ensureVolumeIdentity = async (rootPath: string): Promise<VolumeIdentity> => ({
+  ...(await rootIdentity(rootPath)),
+  markerId: await ensureMarkerId(path.join(rootPath, VOLUME_MARKER_NAME)),
+});
+
+/** The same reading, but strictly read-only: nothing is created, repaired, or rewritten. */
+export const inspectVolumeIdentity = async (rootPath: string): Promise<VolumeInspection> => {
+  const identity = await rootIdentity(rootPath);
+  const markerId = await readMarkerId(path.join(rootPath, VOLUME_MARKER_NAME));
 
   return {
-    device: stats.dev.toString(),
-    inode: stats.ino.toString(),
-    markerId: await ensureMarkerId(path.join(rootPath, VOLUME_MARKER_NAME)),
+    ...identity,
+    markerPresent: markerId !== undefined,
+    markerId: markerId ?? null,
   };
 };

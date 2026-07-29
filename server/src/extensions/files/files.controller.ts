@@ -26,6 +26,8 @@ import {
   FileEntryResponseDto,
   FileFolderCreateDto,
   FileMoveDto,
+  FileReconcileDto,
+  FileReconcileResponseDto,
   FileTrashDeleteDto,
   FileTrashEmptyDto,
   FileTrashListDto,
@@ -34,16 +36,45 @@ import {
   FileTrashRecordResponseDto,
   FileTrashRestoreDto,
   FileUploadDto,
+  FileVolumeHealthResponseDto,
   FileVolumeResponseDto,
 } from 'src/extensions/files/files.dto';
 import { FileDomainErrorInterceptor } from 'src/extensions/files/files.interceptor';
+import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
 import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard';
 
 @ApiTags(ApiTag.Files)
 @Controller('files')
 @UseInterceptors(FileDomainErrorInterceptor)
 export class FilesController {
-  constructor(private service: FileDomainService) {}
+  constructor(
+    private service: FileDomainService,
+    private reconciliation: ReconciliationService,
+  ) {}
+
+  @Get('volumes/health')
+  @Authenticated({ permission: Permission.FileRead })
+  @Endpoint({
+    summary: 'Report volume health',
+    description:
+      "Reports what the server can currently prove about each of the caller's volumes: whether its filesystem identity and marker still match what the index recorded, how much the index holds, and where an interrupted reconciliation pass would resume. Reads only — it never creates or repairs anything it inspects.",
+    history: HistoryBuilder.v3(),
+  })
+  async getFileVolumeHealth(@Auth() auth: AuthDto): Promise<FileVolumeHealthResponseDto[]> {
+    return this.reconciliation.inspectVolumes(auth.user.id);
+  }
+
+  @Post('reconcile')
+  @Authenticated({ permission: Permission.FileMaintenance, admin: true })
+  @Endpoint({
+    summary: 'Reconcile a volume against the filesystem',
+    description:
+      'Runs or resumes a reconciliation pass. Entries found on disk are added to the index, rows whose file is gone are marked missing, and rows that disagree with the file are marked conflicted — nothing in the tree is modified and no row is deleted. An unhealthy volume is reported and reconciled no further, because an empty tree cannot be told apart from a vanished mount. Bounded by `limit` directories per pass, resuming from the saved checkpoint.',
+    history: HistoryBuilder.v3(),
+  })
+  async reconcileFileVolume(@Auth() auth: AuthDto, @Body() dto: FileReconcileDto): Promise<FileReconcileResponseDto> {
+    return this.reconciliation.reconcileVolume(auth.user.id, dto.volumeId, dto.limit);
+  }
 
   @Get('volumes')
   @Authenticated({ permission: Permission.FileRead })

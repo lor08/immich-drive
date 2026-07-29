@@ -90,6 +90,10 @@ Requirements:
 
 The managed root comes from `IMMICH_DRIVE_ROOT`. **The file domain is opt-in**: with the variable unset the domain is disabled and the server behaves exactly like upstream Immich, which is what keeps an upgrade reversible by configuration alone. With it set, an unusable or overlapping root fails startup with an operator-facing error rather than failing at first write.
 
+`IMMICH_DRIVE_SHARED_SPACE` names one optional shared space every user can address; per-user membership needs the authorization model, so until then the space is either available to everyone or absent.
+
+`IMMICH_DRIVE_TRASH_RETENTION_DAYS` is how long a trash record may sit before reconciliation removes it. **Unset means never**, which is the default: expiry is the only destructive thing reconciliation does, and [ADR 0007](../adr/0007-reconciliation-and-mount-health.md) requires destruction to be an explicit operator decision rather than something a deployment inherits. Expiry runs only on a healthy volume, only in a pass that reached the end of the tree, and never on a record whose manifest could not be read — such a record has no known age, and guessing would destroy the class of content a user is least able to recover another way. A malformed value fails startup rather than being read as "never", because those two are indistinguishable to an operator who meant to configure expiry.
+
 ## Database and filesystem consistency
 
 API operations should update filesystem and metadata through an explicit application workflow. Because crashes can occur between steps, operations must be retryable and reconciliation-aware.

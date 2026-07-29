@@ -178,9 +178,11 @@ Class | Method | HTTP request | Description
 *FilesApi* | [**emptyFileTrash**](doc//FilesApi.md#emptyfiletrash) | **POST** /files/trash/empty | Empty the trash
 *FilesApi* | [**getFileEntries**](doc//FilesApi.md#getfileentries) | **GET** /files/entries | List entries in a folder
 *FilesApi* | [**getFileTrash**](doc//FilesApi.md#getfiletrash) | **GET** /files/trash | List the trash
+*FilesApi* | [**getFileVolumeHealth**](doc//FilesApi.md#getfilevolumehealth) | **GET** /files/volumes/health | Report volume health
 *FilesApi* | [**getFileVolumes**](doc//FilesApi.md#getfilevolumes) | **GET** /files/volumes | List file volumes
 *FilesApi* | [**moveFileEntry**](doc//FilesApi.md#movefileentry) | **POST** /files/move | Move or rename an entry
 *FilesApi* | [**purgeFileEntry**](doc//FilesApi.md#purgefileentry) | **DELETE** /files/trash | Remove one trash record for good
+*FilesApi* | [**reconcileFileVolume**](doc//FilesApi.md#reconcilefilevolume) | **POST** /files/reconcile | Reconcile a volume against the filesystem
 *FilesApi* | [**restoreFileEntry**](doc//FilesApi.md#restorefileentry) | **POST** /files/trash/restore | Restore an entry from the trash
 *FilesApi* | [**trashFileEntry**](doc//FilesApi.md#trashfileentry) | **DELETE** /files/entries | Move an entry to the trash
 *FilesApi* | [**uploadFile**](doc//FilesApi.md#uploadfile) | **PUT** /files/content | Upload a file
@@ -467,13 +469,19 @@ Class | Method | HTTP request | Description
  - [FileEntryType](doc//FileEntryType.md)
  - [FileFolderCreateDto](doc//FileFolderCreateDto.md)
  - [FileMoveDto](doc//FileMoveDto.md)
+ - [FileReconcileDto](doc//FileReconcileDto.md)
+ - [FileReconcileResponseDto](doc//FileReconcileResponseDto.md)
  - [FileTrashEmptyDto](doc//FileTrashEmptyDto.md)
  - [FileTrashPurgeResponseDto](doc//FileTrashPurgeResponseDto.md)
  - [FileTrashRecordResponseDto](doc//FileTrashRecordResponseDto.md)
+ - [FileTrashReportDto](doc//FileTrashReportDto.md)
  - [FileTrashRestoreDto](doc//FileTrashRestoreDto.md)
  - [FileVolumeAccess](doc//FileVolumeAccess.md)
+ - [FileVolumeHealthReason](doc//FileVolumeHealthReason.md)
+ - [FileVolumeHealthResponseDto](doc//FileVolumeHealthResponseDto.md)
  - [FileVolumeKind](doc//FileVolumeKind.md)
  - [FileVolumeResponseDto](doc//FileVolumeResponseDto.md)
+ - [FileVolumeState](doc//FileVolumeState.md)
  - [FoldersResponse](doc//FoldersResponse.md)
  - [FoldersUpdate](doc//FoldersUpdate.md)
  - [HlsVideoResolution](doc//HlsVideoResolution.md)

@@ -1250,6 +1250,49 @@ export type FileMoveDto = {
     /** Volume holding both the source and the target */
     volumeId: string;
 };
+export type FileReconcileDto = {
+    /** Maximum directories to reconcile before saving a checkpoint and returning */
+    limit?: number;
+    /** Volume to reconcile */
+    volumeId: string;
+};
+export type FileTrashReportDto = {
+    /** Records whose manifest could not be read */
+    damaged: number;
+    /** Records removed because they exceeded the configured retention */
+    expired: number;
+    /** Entries in the trash that are not records and are left alone */
+    foreign: number;
+    /** Manifests whose content is missing */
+    orphanedManifests: number;
+    /** Records the trash holds */
+    records: number;
+};
+export type FileReconcileResponseDto = {
+    /** Entries this pass discovered on disk and added to the index */
+    added: number;
+    /** Whether the pass reached the end of the tree */
+    completed: boolean;
+    /** Entries this pass newly found disagreeing with the index; the rows are left untouched */
+    conflicted: number;
+    /** Directories reconciled by this pass */
+    directories: number;
+    /** Index rows this pass newly marked missing because their file is gone; nothing is removed */
+    missing: number;
+    /** Reason the pass refused to draw conclusions */
+    reason: (FileVolumeHealthReason) | null;
+    /** Rows this pass returned to present because the filesystem agreed again */
+    recovered: number;
+    /** Checkpoint this pass resumed from */
+    resumedFrom: string | null;
+    state: FileVolumeState;
+    /** Checkpoint saved for the next pass */
+    stoppedAt: string | null;
+    /** Trash findings, present only when the pass completed */
+    trash: (FileTrashReportDto) | null;
+    /** Volume the pass ran on */
+    volumeId: string;
+};
 export type FileTrashEmptyDto = {
     /** Volume whose trash is emptied */
     volumeId: string;
@@ -1275,6 +1318,19 @@ export type FileVolumeResponseDto = {
     kind: FileVolumeKind;
     /** Display name */
     name: string;
+};
+export type FileVolumeHealthResponseDto = {
+    /** Entries the index currently holds for this volume */
+    indexedEntries: number;
+    /** Reason the volume is unhealthy or unverified */
+    reason: (FileVolumeHealthReason) | null;
+    /** Virtual path an interrupted pass will resume from */
+    resumeFrom: string | null;
+    /** When a pass last completed */
+    scannedAt: string | null;
+    state: FileVolumeState;
+    /** Volume the report is about */
+    volumeId: string;
 };
 export type QueueStatisticsDto = {
     /** Number of active jobs */
@@ -4985,6 +5041,21 @@ export function moveFileEntry({ fileMoveDto }: {
     })));
 }
 /**
+ * Reconcile a volume against the filesystem
+ */
+export function reconcileFileVolume({ fileReconcileDto }: {
+    fileReconcileDto: FileReconcileDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: FileReconcileResponseDto;
+    }>("/files/reconcile", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileReconcileDto
+    })));
+}
+/**
  * Remove one trash record for good
  */
 export function purgeFileEntry({ trashId, volumeId }: {
@@ -5052,6 +5123,17 @@ export function getFileVolumes(opts?: Oazapfts.RequestOpts) {
         status: 200;
         data: FileVolumeResponseDto[];
     }>("/files/volumes", {
+        ...opts
+    }));
+}
+/**
+ * Report volume health
+ */
+export function getFileVolumeHealth(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileVolumeHealthResponseDto[];
+    }>("/files/volumes/health", {
         ...opts
     }));
 }
@@ -7476,6 +7558,7 @@ export enum Permission {
     FileUpload = "file.upload",
     FileUpdate = "file.update",
     FileDelete = "file.delete",
+    FileMaintenance = "file.maintenance",
     FolderRead = "folder.read",
     JobCreate = "job.create",
     JobRead = "job.read",
@@ -7631,6 +7714,19 @@ export enum SourceType {
 export enum FileEntryType {
     File = "file",
     Directory = "directory"
+}
+export enum FileVolumeHealthReason {
+    NotIndexed = "not-indexed",
+    RootUnreadable = "root-unreadable",
+    IdentityChanged = "identity-changed",
+    MarkerMissing = "marker-missing",
+    MarkerMismatch = "marker-mismatch",
+    RootEmptyWhileIndexed = "root-empty-while-indexed"
+}
+export enum FileVolumeState {
+    Unverified = "unverified",
+    Healthy = "healthy",
+    Unhealthy = "unhealthy"
 }
 export enum FileVolumeAccess {
     ReadOnly = "read-only",

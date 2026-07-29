@@ -56,6 +56,39 @@ export class VolumeRegistry {
     return volume;
   }
 
+  /**
+   * Describes a volume without creating anything.
+   *
+   * A health check needs this: `resolve` provisions the volume's directories, so asking it about a
+   * volume whose mount has disappeared would recreate the directories on whatever is mounted at that
+   * path instead — repairing, and hiding, the condition being looked for.
+   */
+  describeVolume(ownerId: string, volumeId: string): Volume {
+    return this.describe(ownerId, volumeId);
+  }
+
+  /** Every volume the owner can address, described but not provisioned. */
+  describeVolumes(ownerId: string): Volume[] {
+    const volumes = [this.describe(ownerId, PRIVATE_VOLUME_ID)];
+
+    if (this.sharedSpace) {
+      volumes.push(this.describe(ownerId, `shared:${this.sharedSpace}`));
+    }
+
+    return volumes;
+  }
+
+  /**
+   * An adapter for reading an existing volume, built without provisioning or caching anything.
+   *
+   * No staging or trash root is given, so it can answer questions about the browsable tree of a volume
+   * whose service directories are missing — which is exactly the state a health check has to describe
+   * accurately rather than stumble over. It cannot write, and is not meant to.
+   */
+  async inspectAdapter(volume: Volume): Promise<StorageAdapter> {
+    return LocalStorageAdapter.create(volume.filesPath);
+  }
+
   /** Returns the adapter confined to the volume's browsable tree. */
   async getAdapter(ownerId: string, volumeId: string): Promise<StorageAdapter> {
     const { adapter } = await this.getTarget(ownerId, volumeId);

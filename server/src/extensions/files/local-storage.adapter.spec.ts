@@ -767,6 +767,65 @@ describe(LocalStorageAdapter.name, () => {
       await expect(fs.readFile(path.join(trash, record.id, 'report.txt'), 'utf8')).resolves.toBe('contents');
     });
 
+    describe('inspectTrash', () => {
+      const OTHER_ID = '11111111-1111-4111-8111-111111111111';
+
+      it('separates records, orphaned manifests, and everything else', async () => {
+        const record = await writable.trash('/documents/report.txt');
+        await fs.writeFile(manifestPath(OTHER_ID), JSON.stringify({ version: 1, originalPath: '/gone.txt' }));
+        await fs.writeFile(path.join(trash, 'someone-elses-note.txt'), 'not ours');
+
+        const inspection = await writable.inspectTrash();
+
+        expect(inspection.records.map((entry) => entry.id)).toEqual([record.id]);
+        expect(inspection.orphanedManifests).toEqual([OTHER_ID]);
+        expect(inspection.foreign).toEqual(['someone-elses-note.txt']);
+      });
+
+      it('still reports a record whose manifest cannot be read, with no origin', async () => {
+        const record = await writable.trash('/documents/report.txt');
+        await fs.writeFile(manifestPath(record.id), 'not json at all');
+
+        const inspection = await writable.inspectTrash();
+
+        expect(inspection.records).toEqual([
+          expect.objectContaining({ id: record.id, name: 'report.txt', originalPath: null, deletedAt: null }),
+        ]);
+        expect(inspection.orphanedManifests).toEqual([]);
+      });
+
+      /**
+       * An identifier-shaped name that is not a record is reported rather than skipped: a purge can still
+       * remove it, and an operator otherwise has no way to learn it is there.
+       */
+      it('reports an identifier-shaped name that is not a record as foreign', async () => {
+        await fs.writeFile(path.join(trash, OTHER_ID), 'a file where a directory belongs');
+
+        const inspection = await writable.inspectTrash();
+
+        expect(inspection.records).toEqual([]);
+        expect(inspection.foreign).toEqual([OTHER_ID]);
+      });
+
+      it('reports a record directory holding more than one entry as foreign', async () => {
+        const record = await writable.trash('/documents/report.txt');
+        await fs.writeFile(path.join(trash, record.id, 'extra.txt'), 'unexpected');
+
+        const inspection = await writable.inspectTrash();
+
+        expect(inspection.records).toEqual([]);
+        expect(inspection.foreign).toEqual([record.id]);
+      });
+
+      it('answers with nothing for an empty trash', async () => {
+        await expect(writable.inspectTrash()).resolves.toEqual({
+          records: [],
+          orphanedManifests: [],
+          foreign: [],
+        });
+      });
+    });
+
     it('records where the entry came from, in a manifest a person can read', async () => {
       const record = await writable.trash('/documents/report.txt');
 
