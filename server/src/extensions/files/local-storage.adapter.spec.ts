@@ -1005,6 +1005,26 @@ describe(LocalStorageAdapter.name, () => {
       await expect(fs.readdir(trash)).resolves.toEqual([]);
     });
 
+    it('removes a record it cannot interpret, so nothing becomes unremovable', async () => {
+      const record = await writable.trash('/documents/report.txt');
+      // Two entries under one identifier: not a shape the application produces, and not one it can
+      // restore, but the content is real and must not become impossible to get rid of.
+      await fs.writeFile(path.join(trash, record.id, 'stranger.txt'), 'x');
+
+      await expect(writable.listTrash()).resolves.toEqual([]);
+      await expect(writable.purgeFromTrash(record.id)).resolves.toBeUndefined();
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
+    it('clears a manifest whose record never made it, when emptying', async () => {
+      // What an interrupted delete leaves behind: the manifest was written, the directory was not.
+      const orphan = '11111111-1111-4111-8111-111111111111';
+      await fs.writeFile(manifestPath(orphan), '{}');
+
+      await expect(writable.emptyTrash()).resolves.toEqual({ removed: 1, failed: 0 });
+      await expect(fs.readdir(trash)).resolves.toEqual([]);
+    });
+
     it('empties an already empty trash without complaining', async () => {
       await expect(writable.emptyTrash()).resolves.toEqual({ removed: 0, failed: 0 });
     });

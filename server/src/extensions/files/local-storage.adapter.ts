@@ -738,17 +738,25 @@ export class LocalStorageAdapter extends StorageAdapter {
     }
   }
 
-  /** Removes one record for good. Idempotent, so a retry after a partial failure completes it. */
+  /**
+   * Removes one record for good.
+   *
+   * Deliberately independent of whether the record can be *read*: it removes whatever sits under that
+   * identifier. A record the application cannot interpret — a damaged manifest, an unexpected shape —
+   * must still be removable, or the trash would accumulate content nothing can clear. Only the
+   * identifier is validated, so this can still name nothing but a record.
+   */
   override async purgeFromTrash(id: string): Promise<void> {
     const trashRoot = this.requireTrashRoot();
     this.assertTrashId(id);
 
     const trashHandle = await this.openServiceRoot(trashRoot);
     try {
-      const record = await this.readTrashRecord(trashHandle, trashRoot, id);
-      if (record === null) {
+      const directory = await this.openChild(trashHandle, id, true, trashRoot.path);
+      if (directory === null) {
         throw new LocalStorageAdapterError(LocalStorageErrorCode.EntryNotFound, 'Trash record does not exist');
       }
+      await directory.handle.close();
 
       await this.removeTrashRecord(trashHandle, id);
     } finally {
@@ -771,11 +779,16 @@ export class LocalStorageAdapter extends StorageAdapter {
       let removed = 0;
       let failed = 0;
 
-      for (const id of names) {
-        if (!TRASH_ID_PATTERN.test(id)) {
-          continue;
-        }
+      // A manifest without its directory is possible: a delete interrupted between writing the one
+      // and creating the other leaves it behind. Both spellings map to the same identifier here, so
+      // emptying clears that too instead of leaving a file nothing else will ever look at.
+      const ids = new Set(
+        names
+          .map((name) => (name.endsWith('.json') ? name.slice(0, -'.json'.length) : name))
+          .filter((name) => TRASH_ID_PATTERN.test(name)),
+      );
 
+      for (const id of ids) {
         try {
           await this.removeTrashRecord(trashHandle, id);
           removed++;

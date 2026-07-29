@@ -51,6 +51,8 @@ A generated identifier rather than a mirror of the original path, because two de
 
 **The trash is one authority.** `file.delete` covers moving into the trash, restoring out of it, and purging. Splitting restore under `file.create` would hand out a key that can restore what it cannot delete.
 
+**A record the application cannot read is still removable.** A purge validates the identifier and then removes whatever sits under it, without first requiring the record to be interpretable, and emptying maps a stray `<uuid>.json` back to its identifier so a delete interrupted between writing the manifest and creating the directory does not leave a file nothing ever looks at again. Both of these were gaps in the first implementation, found by self-review against this task's own stated principle: listing tolerated a damaged record, but purging refused it.
+
 **Emptying continues past a failing record** and reports `{ removed, failed }`, so one record the filesystem refuses to remove cannot make the trash permanently un-emptiable. Content in the trash that is not a record — a stray file, a directory that is not a UUID — is left alone by every operation.
 
 **Lock keys.** A delete locks the path it leaves; a restore locks the record and the target; a purge locks the record alone, since nothing lands anywhere. Record keys are `trash:<id>`, which no normalized path can produce, so the two namespaces share a lock space without either being able to mean the other. Emptying is deliberately **not** locked as a unit: a lock covering every record would have to be volume-wide and would serialise emptying against every unrelated operation, so each record goes independently and one being restored at that moment is simply counted as failed.
@@ -98,6 +100,7 @@ server/src/enum.ts                                    file.delete permission
 - [x] Restore puts the entry back at its original path, and the record disappears.
 - [x] An occupied target is `409` and the record survives; `targetPath` resolves it; a missing parent is `404`.
 - [x] Purging one record removes both the content and the manifest.
+- [x] A record the application cannot interpret can still be purged, and an orphaned manifest is cleared by emptying.
 - [x] Emptying removes every record, reports counts, and leaves foreign content alone.
 - [x] The trash is unreachable through the address space: no path can name it, list it, or write into it.
 - [x] One owner cannot see or touch another owner's trash.
@@ -108,7 +111,7 @@ server/src/enum.ts                                    file.delete permission
 
 ## Verified by running it
 
-The full server suite passes: 2455 tests, 2 skipped. The file domain holds 205, forty of them new — including a folder moved in whole, a record whose manifest is missing, not JSON, not an object, or naming an escaping path, identifiers that are not identifiers, a trash root on `/dev/shm`, and descriptor accounting across every operation and its failures.
+The full server suite passes: 2455 tests, 2 skipped. The file domain holds 207, forty-two of them new — including a folder moved in whole, a record whose manifest is missing, not JSON, not an object, or naming an escaping path, identifiers that are not identifiers, a trash root on `/dev/shm`, and descriptor accounting across every operation and its failures.
 
 Against the live server:
 
