@@ -1,11 +1,16 @@
 import { DynamicModule, Inject, Module, OnApplicationBootstrap } from '@nestjs/common';
+import { ClsModule } from 'nestjs-cls';
 import { StorageCore } from 'src/cores/storage.core';
+import { DriveIndexRepository } from 'src/extensions/files/drive-index.repository';
+import { DriveIndexService } from 'src/extensions/files/drive-index.service';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { DriveConfig } from 'src/extensions/files/files.config';
 import { FilesController } from 'src/extensions/files/files.controller';
 import { PathLock } from 'src/extensions/files/path-lock';
 import { validateStorageRoot } from 'src/extensions/files/storage-root.validator';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
+import { ConfigRepository } from 'src/repositories/config.repository';
+import { LoggingRepository } from 'src/repositories/logging.repository';
 
 export const DRIVE_CONFIG = 'DRIVE_CONFIG';
 
@@ -31,8 +36,17 @@ export class FilesModule implements OnApplicationBootstrap {
     return {
       module: FilesModule,
       controllers: [FilesController],
+      // The module has its own injector, so what it needs from upstream it has to name. `ClsModule` is
+      // what lets `LoggingRepository` resolve `ClsService` and keep the request correlation id on a log
+      // line; the service instance is a thin reader of a process-wide store, so a second one is not a
+      // second context.
+      imports: [ClsModule],
       providers: [
         { provide: DRIVE_CONFIG, useValue: config },
+        ConfigRepository,
+        LoggingRepository,
+        DriveIndexRepository,
+        DriveIndexService,
         {
           provide: VolumeRegistry,
           useFactory: async (): Promise<VolumeRegistry | null> => {

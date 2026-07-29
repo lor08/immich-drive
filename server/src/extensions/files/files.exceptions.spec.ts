@@ -2,6 +2,7 @@ import { HttpException } from '@nestjs/common';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { DriveIndexService } from 'src/extensions/files/drive-index.service';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { toHttpException } from 'src/extensions/files/files.exceptions';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
@@ -13,6 +14,13 @@ import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 const passthroughLocks = {
   withPathLock: (_volumeId: string, _path: string, handler: () => Promise<unknown>) => handler(),
 } as unknown as PathLock;
+
+/** These cases are about which HTTP status an error becomes, so the index is a no-op here. */
+const noIndex = {
+  recordEntry: () => Promise.resolve(),
+  recordMove: () => Promise.resolve(),
+  forgetSubtree: () => Promise.resolve(),
+} as unknown as DriveIndexService;
 
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 
@@ -31,7 +39,7 @@ describe('toHttpException', () => {
 
   beforeEach(async () => {
     storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-errors-'));
-    sut = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks);
+    sut = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks, noIndex);
   });
 
   afterEach(async () => {

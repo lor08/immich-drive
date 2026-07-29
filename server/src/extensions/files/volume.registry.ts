@@ -58,6 +58,18 @@ export class VolumeRegistry {
 
   /** Returns the adapter confined to the volume's browsable tree. */
   async getAdapter(ownerId: string, volumeId: string): Promise<StorageAdapter> {
+    const { adapter } = await this.getTarget(ownerId, volumeId);
+    return adapter;
+  }
+
+  /**
+   * Returns the volume together with its adapter.
+   *
+   * A mutation needs both — the adapter to perform it and the volume to record it in the index — and
+   * resolving them in one step is what stops a caller from pairing one volume's adapter with another
+   * volume's identity.
+   */
+  async getTarget(ownerId: string, volumeId: string): Promise<{ volume: Volume; adapter: StorageAdapter }> {
     const volume = await this.resolve(ownerId, volumeId);
 
     let adapter = this.adapters.get(volume.filesPath);
@@ -68,7 +80,7 @@ export class VolumeRegistry {
       this.adapters.set(volume.filesPath, adapter);
     }
 
-    return adapter;
+    return { volume, adapter: await adapter };
   }
 
   private describe(ownerId: string, volumeId: string): Volume {

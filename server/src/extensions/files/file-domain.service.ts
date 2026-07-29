@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { DriveIndexService } from 'src/extensions/files/drive-index.service';
 import { FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
 import { PathLock } from 'src/extensions/files/path-lock';
@@ -30,6 +31,7 @@ export class FileDomainService {
   constructor(
     @Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null,
     private readonly locks: PathLock,
+    private readonly index: DriveIndexService,
   ) {}
 
   /**
@@ -88,9 +90,13 @@ export class FileDomainService {
    * same target.
    */
   async createFolder(ownerId: string, volumeId: string, path: string): Promise<FileEntry> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
 
-    return this.locks.withPathLock(volumeId, path, () => adapter.createDirectory(path));
+    return this.locks.withPathLock(volumeId, path, async () => {
+      const entry = await adapter.createDirectory(path);
+      await this.index.recordEntry(ownerId, volume, entry);
+      return entry;
+    });
   }
 
   /**
@@ -104,9 +110,13 @@ export class FileDomainService {
     content: AsyncIterable<Uint8Array>,
     options?: StorageWriteOptions,
   ): Promise<FileEntry> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
 
-    return this.locks.withPathLock(volumeId, path, () => adapter.write(path, content, options));
+    return this.locks.withPathLock(volumeId, path, async () => {
+      const entry = await adapter.write(path, content, options);
+      await this.index.recordEntry(ownerId, volume, entry);
+      return entry;
+    });
   }
 
   async openEntry(
@@ -127,9 +137,20 @@ export class FileDomainService {
    * therefore ordered by the lock layer rather than by the caller, which turns that pair into a queue.
    */
   async moveEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<void> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
 
-    return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], () => adapter.move(sourcePath, targetPath));
+    return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], async () => {
+      await adapter.move(sourcePath, targetPath);
+
+      // The destination is described by the filesystem rather than by this method, so the index cannot
+      // assert a size or a type the entry never had. A missing destination means it was removed from
+      // under us between the rename and this call, and then the only honest update is that the source
+      // is no longer there.
+      const entry = await adapter.stat(targetPath);
+      await (entry
+        ? this.index.recordMove(ownerId, volume, sourcePath, entry)
+        : this.index.forgetSubtree(ownerId, volume, sourcePath));
+    });
   }
 
   /**
@@ -139,9 +160,13 @@ export class FileDomainService {
    * between the check that it is a regular file and the read that follows.
    */
   async copyEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<FileEntry> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
 
-    return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], () => adapter.copy(sourcePath, targetPath));
+    return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], async () => {
+      const entry = await adapter.copy(sourcePath, targetPath);
+      await this.index.recordEntry(ownerId, volume, entry);
+      return entry;
+    });
   }
 
   async deleteEntry(ownerId: string, volumeId: string, path: string, options?: StorageDeleteOptions): Promise<void> {
@@ -151,9 +176,15 @@ export class FileDomainService {
 
   /** Moves an entry to the trash, holding the lock on the path it leaves. */
   async trashEntry(ownerId: string, volumeId: string, path: string): Promise<TrashRecord> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
 
-    return this.locks.withPathLock(volumeId, path, () => adapter.trash(path));
+    return this.locks.withPathLock(volumeId, path, async () => {
+      const record = await adapter.trash(path);
+      // The trash is not part of the address space, so the index stops describing this path rather than
+      // following the content. `P1-06` owns what the trash itself holds.
+      await this.index.forgetSubtree(ownerId, volume, path);
+      return record;
+    });
   }
 
   async listTrash(ownerId: string, volumeId: string): Promise<readonly TrashRecord[]> {
@@ -169,10 +200,18 @@ export class FileDomainService {
    * same record from running at once; locking the target is what stops two restores landing there.
    */
   async restoreFromTrash(ownerId: string, volumeId: string, trashId: string, targetPath?: string): Promise<FileEntry> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
     const keys = [trashLockKey(trashId), ...(targetPath === undefined ? [] : [targetPath])];
 
-    return this.locks.withPathLocks(volumeId, keys, () => adapter.restoreFromTrash(trashId, targetPath));
+    return this.locks.withPathLocks(volumeId, keys, async () => {
+      const entry = await adapter.restoreFromTrash(trashId, targetPath);
+      // Only the restored entry itself. A restored folder's descendants were forgotten when it was
+      // trashed and are not walked here: rebuilding a subtree in the index is a scan, and the scan is
+      // `P1-06`. Until then those files are simply unindexed, which is the state every file was in
+      // before this task.
+      await this.index.recordEntry(ownerId, volume, entry);
+      return entry;
+    });
   }
 
   /**

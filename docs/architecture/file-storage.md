@@ -68,11 +68,14 @@ The initial adapter is `LocalStorageAdapter`, and it is read-only: `write`, `mov
 Content lives in volumes. Each volume is an independently rooted tree with a kind and an access mode, and every path the server derives comes from a trusted volume root, trusted identifiers, and validated names.
 
 ```text
-<managed-root>/users/<user-id>/files/      browsable private content
-<managed-root>/users/<user-id>/.trash/     soft-deleted content and manifests
-<managed-root>/users/<user-id>/.tmp/       upload staging
-<managed-root>/shared/<space>/files/       shared content, same service directories
+<managed-root>/users/<user-id>/files/                    browsable private content
+<managed-root>/users/<user-id>/.trash/                   soft-deleted content and manifests
+<managed-root>/users/<user-id>/.tmp/                     upload staging
+<managed-root>/users/<user-id>/.immich-drive-volume       volume marker
+<managed-root>/shared/<space>/files/                     shared content, same service directories
 ```
+
+The marker is one JSON dot-file at the volume root, holding a version and a generated `markerId`. It is written the first time the server records a mutation on the volume, never rewritten, and never removed. [ADR 0007](../adr/0007-reconciliation-and-mount-health.md) requires it: together with the recorded `st_dev` and `st_ino` of the volume root it is how reconciliation tells "this volume is empty" apart from "this volume is not mounted", and only the first of those may ever be read as a deletion. It sits beside the browsable tree rather than inside it, so no path can address it — deleting it is possible for whoever has host access, and the consequence is that the volume reads as unhealthy and removals stop, which is the safe direction.
 
 Requirements:
 

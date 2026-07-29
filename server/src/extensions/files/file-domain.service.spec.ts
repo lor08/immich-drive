@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { AuthDto } from 'src/dtos/auth.dto';
+import { DriveIndexService } from 'src/extensions/files/drive-index.service';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
+import { FileEntry } from 'src/extensions/files/file-entry';
 import { FilesController } from 'src/extensions/files/files.controller';
 import { PathLock } from 'src/extensions/files/path-lock';
 import { PRIVATE_VOLUME_ID, VolumeAccess, VolumeKind } from 'src/extensions/files/volume';
@@ -33,6 +36,34 @@ const recordingLocks = (locked: string[][]) =>
     },
   }) as unknown as PathLock;
 
+/** What the index was told, as `[operation, ...paths]`. */
+type IndexCall = [string, ...string[]];
+
+/**
+ * Stands in for the index without a database.
+ *
+ * How the rows are written is the repository's concern and is covered against real PostgreSQL. What
+ * belongs here is whether each mutation reports what it did at all: an operation that quietly stopped
+ * telling the index would otherwise keep passing every test in the domain.
+ */
+const recordingIndex = (calls: IndexCall[] = []) =>
+  ({
+    recordEntry: (_ownerId: string, _volume: unknown, entry: FileEntry) => {
+      calls.push(['record', entry.path]);
+      return Promise.resolve();
+    },
+    recordMove: (_ownerId: string, _volume: unknown, sourcePath: string, entry: FileEntry) => {
+      calls.push(['move', sourcePath, entry.path]);
+      return Promise.resolve();
+    },
+    forgetSubtree: (_ownerId: string, _volume: unknown, entryPath: string) => {
+      calls.push(['forget', entryPath]);
+      return Promise.resolve();
+    },
+  }) as unknown as DriveIndexService;
+
+const bytes = (content: string) => Readable.from([Buffer.from(content)]);
+
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 const OTHER_OWNER = '5f2b9c4e-0000-4000-8000-000000000002';
 
@@ -41,10 +72,16 @@ const asAuth = (userId: string) => ({ user: { id: userId } }) as AuthDto;
 describe(FileDomainService.name, () => {
   let storageRoot: string;
   let sut: FileDomainService;
+  let indexCalls: IndexCall[];
 
   beforeEach(async () => {
     storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-domain-'));
-    sut = new FileDomainService(new VolumeRegistry({ storageRoot, sharedSpace: 'family' }), passthroughLocks);
+    indexCalls = [];
+    sut = new FileDomainService(
+      new VolumeRegistry({ storageRoot, sharedSpace: 'family' }),
+      passthroughLocks,
+      recordingIndex(indexCalls),
+    );
   });
 
   afterEach(async () => {
@@ -110,7 +147,11 @@ describe(FileDomainService.name, () => {
 
   it('moves an entry while holding the lock on both paths', async () => {
     const locked: string[][] = [];
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const service = new FileDomainService(
+      new VolumeRegistry({ storageRoot }),
+      recordingLocks(locked),
+      recordingIndex(indexCalls),
+    );
     const [volume] = await service.listVolumes(OWNER);
     await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
 
@@ -122,7 +163,11 @@ describe(FileDomainService.name, () => {
 
   it('copies a file while holding the lock on both paths', async () => {
     const locked: string[][] = [];
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const service = new FileDomainService(
+      new VolumeRegistry({ storageRoot }),
+      recordingLocks(locked),
+      recordingIndex(indexCalls),
+    );
     const [volume] = await service.listVolumes(OWNER);
     await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
 
@@ -134,14 +179,22 @@ describe(FileDomainService.name, () => {
   });
 
   it('cannot move an entry out of a volume the owner cannot address', async () => {
-    const other = new FileDomainService(new VolumeRegistry({ storageRoot, sharedSpace: 'family' }), passthroughLocks);
+    const other = new FileDomainService(
+      new VolumeRegistry({ storageRoot, sharedSpace: 'family' }),
+      passthroughLocks,
+      recordingIndex(indexCalls),
+    );
 
     await expect(other.moveEntry(OWNER, 'shared:other', '/a.txt', '/b.txt')).rejects.toThrow();
   });
 
   it('deletes to the trash under the lock on the path it leaves', async () => {
     const locked: string[][] = [];
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const service = new FileDomainService(
+      new VolumeRegistry({ storageRoot }),
+      recordingLocks(locked),
+      recordingIndex(indexCalls),
+    );
     const [volume] = await service.listVolumes(OWNER);
     await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
 
@@ -155,7 +208,11 @@ describe(FileDomainService.name, () => {
 
   it('restores under the lock on the record and on the target', async () => {
     const locked: string[][] = [];
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const service = new FileDomainService(
+      new VolumeRegistry({ storageRoot }),
+      recordingLocks(locked),
+      recordingIndex(indexCalls),
+    );
     const [volume] = await service.listVolumes(OWNER);
     await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
 
@@ -169,7 +226,11 @@ describe(FileDomainService.name, () => {
 
   it('purges under the lock on the record alone', async () => {
     const locked: string[][] = [];
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), recordingLocks(locked));
+    const service = new FileDomainService(
+      new VolumeRegistry({ storageRoot }),
+      recordingLocks(locked),
+      recordingIndex(indexCalls),
+    );
     const [volume] = await service.listVolumes(OWNER);
     await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
 
@@ -199,8 +260,52 @@ describe(FileDomainService.name, () => {
     ]);
   });
 
+  it('reports every mutation to the index, in the order they happened', async () => {
+    await sut.createFolder(OWNER, PRIVATE_VOLUME_ID, '/documents');
+    await sut.writeFile(OWNER, PRIVATE_VOLUME_ID, '/documents/report.txt', bytes('contents'));
+    await sut.copyEntry(OWNER, PRIVATE_VOLUME_ID, '/documents/report.txt', '/documents/copy.txt');
+    await sut.moveEntry(OWNER, PRIVATE_VOLUME_ID, '/documents/copy.txt', '/moved.txt');
+    const record = await sut.trashEntry(OWNER, PRIVATE_VOLUME_ID, '/moved.txt');
+    await sut.restoreFromTrash(OWNER, PRIVATE_VOLUME_ID, record.id);
+
+    expect(indexCalls).toEqual([
+      ['record', '/documents'],
+      ['record', '/documents/report.txt'],
+      ['record', '/documents/copy.txt'],
+      ['move', '/documents/copy.txt', '/moved.txt'],
+      // The trash is outside the address space, so the index stops describing the path rather than
+      // following the content into it.
+      ['forget', '/moved.txt'],
+      ['record', '/moved.txt'],
+    ]);
+  });
+
+  it('tells the index nothing when the operation itself failed', async () => {
+    const [volume] = await sut.listVolumes(OWNER);
+    await fs.writeFile(path.join(volume.filesPath, 'report.txt'), 'contents');
+    await fs.writeFile(path.join(volume.filesPath, 'taken.txt'), 'other');
+
+    await expect(sut.moveEntry(OWNER, PRIVATE_VOLUME_ID, '/report.txt', '/taken.txt')).rejects.toThrow();
+    await expect(sut.createFolder(OWNER, PRIVATE_VOLUME_ID, '/missing/folder')).rejects.toThrow();
+    await expect(sut.trashEntry(OWNER, PRIVATE_VOLUME_ID, '/gone.txt')).rejects.toThrow();
+
+    expect(indexCalls).toEqual([]);
+  });
+
+  it('forgets the whole subtree a moved folder came from', async () => {
+    await sut.createFolder(OWNER, PRIVATE_VOLUME_ID, '/documents');
+    await sut.writeFile(OWNER, PRIVATE_VOLUME_ID, '/documents/report.txt', bytes('contents'));
+    indexCalls.length = 0;
+
+    await sut.moveEntry(OWNER, PRIVATE_VOLUME_ID, '/documents', '/archive');
+
+    // One call, not one per descendant: rewriting the prefix is the index's job and is a single
+    // statement there, whatever the size of the subtree.
+    expect(indexCalls).toEqual([['move', '/documents', '/archive']]);
+  });
+
   it('reports that file storage is not enabled when the domain is unconfigured', async () => {
-    const disabled = new FileDomainService(null, passthroughLocks);
+    const disabled = new FileDomainService(null, passthroughLocks, recordingIndex());
 
     await expect(disabled.listVolumes(OWNER)).rejects.toThrow('Immich Drive file storage is not enabled');
     await expect(disabled.listEntries(OWNER, PRIVATE_VOLUME_ID, '/')).rejects.toThrow(
@@ -235,7 +340,7 @@ describe(FilesController.name, () => {
 
   it('lists folder entries for the authenticated user', async () => {
     const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-entries-'));
-    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks);
+    const service = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks, recordingIndex());
     const [volume] = await service.listVolumes(OWNER);
     await fs.mkdir(path.join(volume.filesPath, 'documents'));
     await fs.writeFile(path.join(volume.filesPath, 'documents', 'report.txt'), 'contents');
