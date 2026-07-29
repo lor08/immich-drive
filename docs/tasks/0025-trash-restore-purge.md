@@ -107,7 +107,7 @@ server/src/enum.ts                                    file.delete permission
 - [x] A trash root that is missing, or on another filesystem, is refused at construction.
 - [x] Descriptors are not leaked across success and failure.
 - [x] Verified against the running server.
-- [ ] Relevant inherited checks pass.
+- [x] Relevant inherited checks pass.
 
 ## Verified by running it
 
