@@ -25,6 +25,12 @@ import {
   user_delete_audit,
   user_metadata_audit,
 } from 'src/schema/functions';
+// The fork's own tables. They live under `src/extensions/files/` like the rest of Immich Drive, and
+// only their registration is here, because Kysely's `DB` type and the schema tooling both read this
+// file. Drive migrations carry a fixed high timestamp prefix so they always sort after upstream's —
+// see docs/adr/0011-drive-index-schema.md.
+import { DriveEntryTable } from 'src/extensions/files/schema/drive-entry.table';
+import { DriveVolumeTable } from 'src/extensions/files/schema/drive-volume.table';
 import { ActivityTable } from 'src/schema/tables/activity.table';
 import { AlbumAssetAuditTable } from 'src/schema/tables/album-asset-audit.table';
 import { AlbumAssetTable } from 'src/schema/tables/album-asset.table';
@@ -114,6 +120,8 @@ export class ImmichDatabase {
     AssetTable,
     AssetFileTable,
     AssetExifTable,
+    DriveVolumeTable,
+    DriveEntryTable,
     FaceSearchTable,
     GeodataPlacesTable,
     IntegrityReportTable,
@@ -198,6 +206,9 @@ export interface DB {
   album_user_audit: AlbumUserAuditTable;
 
   api_key: ApiKeyTable;
+
+  drive_volume: DriveVolumeTable;
+  drive_entry: DriveEntryTable;
 
   asset: AssetTable;
   asset_audit: AssetAuditTable;
