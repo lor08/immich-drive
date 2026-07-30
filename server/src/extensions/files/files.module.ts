@@ -14,6 +14,20 @@ import { ConfigRepository } from 'src/repositories/config.repository';
 import { LoggingRepository } from 'src/repositories/logging.repository';
 
 /**
+ * The media location, or `undefined` when nothing has set one.
+ *
+ * `StorageCore.getMediaLocation` throws in that case, and here "not set" is a legitimate answer rather
+ * than a failure — see `onApplicationBootstrap`.
+ */
+const readMediaLocation = (): string | undefined => {
+  try {
+    return StorageCore.getMediaLocation();
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * The Immich Drive file domain.
  *
  * The module is registered unconditionally so the OpenAPI document, and therefore both generated
@@ -26,6 +40,10 @@ import { LoggingRepository } from 'src/repositories/logging.repository';
  * the canonical path. Overlap with Immich's media location is checked in `onApplicationBootstrap`,
  * which runs after `StorageService` resolves that location on the `AppBootstrap` event. Either
  * failure stops the server from starting.
+ *
+ * The module is also loaded by the admin CLI, which takes the same service list as the workers and so
+ * carries the Drive job handler with it. The CLI never serves a byte and never sets a media location, so
+ * the overlap check has nothing to compare against there and is skipped.
  */
 @Module({})
 export class FilesModule implements OnApplicationBootstrap {
@@ -72,9 +90,19 @@ export class FilesModule implements OnApplicationBootstrap {
       return;
     }
 
+    const mediaLocation = readMediaLocation();
+    if (mediaLocation === undefined) {
+      // Nothing set the media location in this process, which is true of the admin CLI: it is built from
+      // the same service list as the workers, so it carries the Drive job handler and therefore this
+      // module, while never serving a byte. There is no media location to overlap with, so there is
+      // nothing to check. Anything that does serve files sets it while modules initialise, which is
+      // before this hook runs — so this is not a way for a real overlap to go unnoticed.
+      return;
+    }
+
     await validateStorageRoot({
       root: this.config.root,
-      reservedPaths: [StorageCore.getMediaLocation()],
+      reservedPaths: [mediaLocation],
     });
   }
 }

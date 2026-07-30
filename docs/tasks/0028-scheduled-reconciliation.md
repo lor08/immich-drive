@@ -25,12 +25,12 @@ The decision this task turns on, and it was measured against the code rather tha
 
 So adding a `JobName` at all forces the handler into the upstream registry. Four files, two of them new seams:
 
-| File                           | Change                                          | Why it is unavoidable                                                                    |
-| ------------------------------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `server/src/enum.ts`           | two `JobName`s, one `DatabaseLock`              | existing seam; the lock is what stops two replicas owning the same schedule              |
-| `server/src/types.ts`          | two `JobItem` union entries, one data interface | **new seam**; `jobRepository.queue()` takes `JobItem`, which is exhaustive               |
-| `server/src/services/index.ts` | one import, one array entry                     | **new seam**; without it the server refuses to start, per the above                      |
-| `server/src/app.module.ts`     | `driveModule` into `MicroservicesModule`        | existing seam; jobs run in that worker, and the handler needs the file domain's services |
+| File                           | Change                                          | Why it is unavoidable                                                                                     |
+| ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `server/src/enum.ts`           | two `JobName`s, one `DatabaseLock`              | existing seam; the lock is what stops two replicas owning the same schedule                               |
+| `server/src/types.ts`          | two `JobItem` union entries, one data interface | **new seam**; `jobRepository.queue()` takes `JobItem`, which is exhaustive                                |
+| `server/src/services/index.ts` | one import, one array entry                     | **new seam**; without it the server refuses to start, per the above                                       |
+| `server/src/app.module.ts`     | `driveModule` into two more modules             | existing seam; jobs run in the microservices worker, and the admin CLI instantiates the same service list |
 
 ## Decisions made by this task
 
@@ -105,7 +105,9 @@ Live, with both workers running against a real Redis and a real database:
 Two things the live run found that no test would have:
 
 1. **The module exported too little.** `DriveJobService` resolves in the microservices worker, which meant `FilesModule` had to export `DRIVE_CONFIG` as well as its services — a provider is invisible outside its module unless the module exports it. The worker failed to boot until it did.
-2. **The microservices worker needs geodata.** Unrelated to this change, but it is why this worker had never been started in the development environment: `MetadataService` imports reverse-geocoding data on bootstrap and throws if it cannot. Minimal fixtures under `IMMICH_BUILD_DATA/geodata` are enough to get the worker up locally; the note is here so the next person does not rediscover it.
+
+2. **The admin CLI takes the same service list, and it was overlooked twice.** `ImmichAdminModule` also builds from `common`, so it instantiates `DriveJobService` — and failed to construct it, exiting `1` with **no message at all**, because the CLI forces its log level to `warn` and the dependency error never reached the terminal. Found by the inherited end-to-end suite, which runs four `immich-admin` commands, and then reproduced locally in one command. Importing the file domain there surfaced a second problem: the CLI never sets a media location, so this module's overlap check threw. It is now skipped when no location has been set, which is only ever true in a process that serves no files — anything that does serve them sets it while modules initialise, before that hook runs.
+3. **The microservices worker needs geodata.** Unrelated to this change, but it is why this worker had never been started in the development environment: `MetadataService` imports reverse-geocoding data on bootstrap and throws if it cannot. Minimal fixtures under `IMMICH_BUILD_DATA/geodata` are enough to get the worker up locally; the note is here so the next person does not rediscover it.
 
 Two criteria are met by unit tests rather than by the live run, and the difference is stated rather than implied: **"only once across replicas"** is the lock returning false leaving the schedule unregistered, not two replicas actually racing; and **the chain of jobs for an oversized volume** is the re-queue rules under test, because the development tree is twelve directories and finishes inside one pass. Both would need a larger fixture or a second replica to see for real.
 

@@ -159,7 +159,11 @@ export class MaintenanceModule {
 export class MicroservicesModule extends BaseModule {}
 
 @Module({
-  imports: [...bullImports, ...commonImports],
+  // `driveModule` again, for the third and last module that takes `common`: the admin CLI instantiates
+  // every service in that list, including the Drive job handler, so the file domain has to be resolvable
+  // here even though the CLI never reconciles anything. Without it the CLI exits 1 with no message,
+  // because its log level suppresses the dependency error.
+  imports: [...bullImports, ...commonImports, driveModule],
   providers: [...common, ...commandsAndQuestions, SchedulerRegistry],
 })
 export class ImmichAdminModule implements OnModuleDestroy {
