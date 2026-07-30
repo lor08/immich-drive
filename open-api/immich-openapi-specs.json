@@ -20258,7 +20258,6 @@
           "completed",
           "conflicted",
           "directories",
-          "hashed",
           "missing",
           "reason",
           "recovered",
@@ -20266,7 +20265,6 @@
           "state",
           "stoppedAt",
           "trash",
-          "verified",
           "volumeId"
         ],
         "type": "object"

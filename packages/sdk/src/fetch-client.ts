@@ -1278,7 +1278,7 @@ export type FileReconcileResponseDto = {
     /** Directories reconciled by this pass */
     directories: number;
     /** Entries given a checksum they did not have, within the configured budget */
-    hashed: number;
+    hashed?: number;
     /** Index rows this pass newly marked missing because their file is gone; nothing is removed */
     missing: number;
     /** Reason the pass refused to draw conclusions */
@@ -1293,7 +1293,7 @@ export type FileReconcileResponseDto = {
     /** Trash findings, present only when the pass completed */
     trash: (FileTrashReportDto) | null;
     /** Entries whose content was read to settle a modification-time disagreement */
-    verified: number;
+    verified?: number;
     /** Volume the pass ran on */
     volumeId: string;
 };

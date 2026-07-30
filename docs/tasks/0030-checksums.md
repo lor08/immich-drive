@@ -38,6 +38,8 @@ A digest costs a full read. A pass costs one `stat` per entry today, which is wh
 
 **Backfill only touches entries that agree.** A conflicted row is not given a digest, because the digest would describe content the row already disagrees with.
 
+**The two new report counts are optional in the schema.** A client built against this specification may talk to an older server that has no checksums and reports neither count; absent then means "this server does not verify content", which is exactly true of it. Making them required instead would have demanded an entry in the mobile backward-compatibility patch file — an upstream seam the fork has not needed to take, and the same reason `P2-01` declared its feature flag optional. The inherited `check-mobile-patches` job caught this, which is the third time that obligation has surfaced in CI rather than in review.
+
 **The digest is not exposed through the API.** Nothing reads the index yet, and the shape of a checksum in the client contract belongs with duplicate detection, which is a separate decision.
 
 ## Scope

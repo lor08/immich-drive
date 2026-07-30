@@ -17,7 +17,7 @@ class FileReconcileResponseDto {
     required this.completed,
     required this.conflicted,
     required this.directories,
-    required this.hashed,
+    this.hashed = const Optional.absent(),
     required this.missing,
     required this.reason,
     required this.recovered,
@@ -25,7 +25,7 @@ class FileReconcileResponseDto {
     required this.state,
     required this.stoppedAt,
     required this.trash,
-    required this.verified,
+    this.verified = const Optional.absent(),
     required this.volumeId,
   });
 
@@ -54,7 +54,13 @@ class FileReconcileResponseDto {
   ///
   /// Minimum value: -9007199254740991
   /// Maximum value: 9007199254740991
-  int hashed;
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Optional<int?> hashed;
 
   /// Index rows this pass newly marked missing because their file is gone; nothing is removed
   ///
@@ -86,7 +92,13 @@ class FileReconcileResponseDto {
   ///
   /// Minimum value: -9007199254740991
   /// Maximum value: 9007199254740991
-  int verified;
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Optional<int?> verified;
 
   /// Volume the pass ran on
   String volumeId;
@@ -115,7 +127,7 @@ class FileReconcileResponseDto {
     (completed.hashCode) +
     (conflicted.hashCode) +
     (directories.hashCode) +
-    (hashed.hashCode) +
+    (hashed == null ? 0 : hashed!.hashCode) +
     (missing.hashCode) +
     (reason == null ? 0 : reason!.hashCode) +
     (recovered.hashCode) +
@@ -123,7 +135,7 @@ class FileReconcileResponseDto {
     (state.hashCode) +
     (stoppedAt == null ? 0 : stoppedAt!.hashCode) +
     (trash == null ? 0 : trash!.hashCode) +
-    (verified.hashCode) +
+    (verified == null ? 0 : verified!.hashCode) +
     (volumeId.hashCode);
 
   @override
@@ -135,7 +147,10 @@ class FileReconcileResponseDto {
       json[r'completed'] = this.completed;
       json[r'conflicted'] = this.conflicted;
       json[r'directories'] = this.directories;
-      json[r'hashed'] = this.hashed;
+    if (this.hashed.isPresent) {
+      final value = this.hashed.value;
+      json[r'hashed'] = value;
+    }
       json[r'missing'] = this.missing;
     if (this.reason != null) {
       json[r'reason'] = this.reason;
@@ -159,7 +174,10 @@ class FileReconcileResponseDto {
     } else {
       json[r'trash'] = null;
     }
-      json[r'verified'] = this.verified;
+    if (this.verified.isPresent) {
+      final value = this.verified.value;
+      json[r'verified'] = value;
+    }
       json[r'volumeId'] = this.volumeId;
     return json;
   }
@@ -177,7 +195,7 @@ class FileReconcileResponseDto {
         completed: mapValueOfType<bool>(json, r'completed')!,
         conflicted: mapValueOfType<int>(json, r'conflicted')!,
         directories: mapValueOfType<int>(json, r'directories')!,
-        hashed: mapValueOfType<int>(json, r'hashed')!,
+        hashed: json.containsKey(r'hashed') ? Optional.present(json[r'hashed'] == null ? null : int.parse('${json[r'hashed']}')) : const Optional.absent(),
         missing: mapValueOfType<int>(json, r'missing')!,
         reason: FileVolumeHealthReason.fromJson(json[r'reason']),
         recovered: mapValueOfType<int>(json, r'recovered')!,
@@ -185,7 +203,7 @@ class FileReconcileResponseDto {
         state: FileVolumeState.fromJson(json[r'state'])!,
         stoppedAt: mapValueOfType<String>(json, r'stoppedAt'),
         trash: FileTrashReportDto.fromJson(json[r'trash']),
-        verified: mapValueOfType<int>(json, r'verified')!,
+        verified: json.containsKey(r'verified') ? Optional.present(json[r'verified'] == null ? null : int.parse('${json[r'verified']}')) : const Optional.absent(),
         volumeId: mapValueOfType<String>(json, r'volumeId')!,
       );
     }
@@ -238,7 +256,6 @@ class FileReconcileResponseDto {
     'completed',
     'conflicted',
     'directories',
-    'hashed',
     'missing',
     'reason',
     'recovered',
@@ -246,7 +263,6 @@ class FileReconcileResponseDto {
     'state',
     'stoppedAt',
     'trash',
-    'verified',
     'volumeId',
   };
 }
