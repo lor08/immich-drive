@@ -5,7 +5,7 @@ import { DRIVE_CONFIG, DriveConfig } from 'src/extensions/files/files.config';
 import { DriveVolumeState } from 'src/extensions/files/index-state';
 import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
 import { PRIVATE_VOLUME_ID } from 'src/extensions/files/volume';
-import { VolumeRegistry } from 'src/extensions/files/volume.registry';
+import { VolumeAccessService } from 'src/extensions/files/volume-access.service';
 import { CronRepository } from 'src/repositories/cron.repository';
 import { DatabaseRepository } from 'src/repositories/database.repository';
 import { JobRepository } from 'src/repositories/job.repository';
@@ -41,7 +41,7 @@ const MAX_ATTEMPTS = 1000;
 export class DriveJobService {
   constructor(
     @Inject(DRIVE_CONFIG) private readonly config: DriveConfig,
-    @Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null,
+    private readonly access: VolumeAccessService,
     private readonly reconciliation: ReconciliationService,
     private readonly userRepository: UserRepository,
     private readonly jobRepository: JobRepository,
@@ -92,7 +92,7 @@ export class DriveJobService {
    */
   @OnJob({ name: JobName.DriveReconcileQueueAll, queue: QueueName.BackgroundTask })
   async handleQueueAllVolumes(): Promise<JobStatus> {
-    if (!this.config.enabled || !this.volumes) {
+    if (!this.config.enabled) {
       return JobStatus.Skipped;
     }
 
@@ -101,7 +101,7 @@ export class DriveJobService {
     const sharedVolumeIds = new Set<string>();
 
     for (const { id: ownerId } of users) {
-      for (const volume of this.volumes.describeVolumes(ownerId)) {
+      for (const volume of this.access.describeAllForSystem(ownerId)) {
         if (volume.id === PRIVATE_VOLUME_ID) {
           jobs.push({ ownerId, volumeId: volume.id });
           continue;

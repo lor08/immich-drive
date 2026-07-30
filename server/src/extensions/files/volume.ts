@@ -14,6 +14,8 @@ export enum VolumeErrorCode {
   InvalidOwner = 'invalid-owner',
   InvalidSpaceName = 'invalid-space-name',
   UnknownVolume = 'unknown-volume',
+  /** The caller may see this volume but not change it; see ADR 0012. */
+  ReadOnlyVolume = 'read-only-volume',
 }
 
 export class VolumeError extends Error {

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import path from 'node:path/posix';
 import { DriveEntryRow, DriveIndexRepository, DriveVolumeRow } from 'src/extensions/files/drive-index.repository';
 import { DriveIndexService } from 'src/extensions/files/drive-index.service';
@@ -7,6 +7,7 @@ import { DRIVE_CONFIG, DriveConfig } from 'src/extensions/files/files.config';
 import { DriveEntryState, DriveVolumeState } from 'src/extensions/files/index-state';
 import { StorageAdapter } from 'src/extensions/files/storage.adapter';
 import { Volume, volumeKey } from 'src/extensions/files/volume';
+import { VolumeAccessService } from 'src/extensions/files/volume-access.service';
 import {
   ReconcileReport,
   TrashReport,
@@ -14,7 +15,6 @@ import {
   VolumeHealthReport,
 } from 'src/extensions/files/volume-health';
 import { inspectVolumeIdentity, VolumeInspection } from 'src/extensions/files/volume-identity';
-import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 import { compareWalkOrder, subtreeCompleted } from 'src/extensions/files/walk-order';
 import { LoggingRepository } from 'src/repositories/logging.repository';
 
@@ -53,7 +53,7 @@ interface PassState {
 @Injectable()
 export class ReconciliationService {
   constructor(
-    @Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null,
+    private readonly access: VolumeAccessService,
     @Inject(DRIVE_CONFIG) private readonly config: DriveConfig,
     private readonly repository: DriveIndexRepository,
     private readonly index: DriveIndexService,
@@ -62,17 +62,9 @@ export class ReconciliationService {
     this.logger.setContext(ReconciliationService.name);
   }
 
-  private requireVolumes(): VolumeRegistry {
-    if (!this.volumes) {
-      throw new BadRequestException('Immich Drive file storage is not enabled');
-    }
-
-    return this.volumes;
-  }
-
   /** Health of every volume the owner can address. */
   async inspectVolumes(ownerId: string): Promise<VolumeHealthReport[]> {
-    const volumes = this.requireVolumes().describeVolumes(ownerId);
+    const volumes = this.access.describeAllForSystem(ownerId);
 
     return Promise.all(volumes.map((volume) => this.inspectVolume(ownerId, volume)));
   }
@@ -87,7 +79,7 @@ export class ReconciliationService {
    * concluded, and a read has no business overwriting that.
    */
   async inspectVolume(ownerId: string, volumeId: string | Volume): Promise<VolumeHealthReport> {
-    const volume = typeof volumeId === 'string' ? this.requireVolumes().describeVolume(ownerId, volumeId) : volumeId;
+    const volume = typeof volumeId === 'string' ? this.access.describeForSystem(ownerId, volumeId) : volumeId;
     const row = await this.repository.getVolume(volumeKey(ownerId, volume));
     const indexedEntries = row ? await this.repository.countEntries(row.id) : 0;
     const { state, reason } = await this.evaluate(volume, row, indexedEntries);
@@ -110,7 +102,7 @@ export class ReconciliationService {
    * work of one directory rather than of the whole volume.
    */
   async reconcileVolume(ownerId: string, volumeId: string, limit?: number): Promise<ReconcileReport> {
-    const volume = this.requireVolumes().describeVolume(ownerId, volumeId);
+    const volume = this.access.describeForSystem(ownerId, volumeId);
     const health = await this.inspectVolume(ownerId, volume);
 
     // `Unverified` is not a refusal. A volume nobody has written to, or one whose index was dropped, has
@@ -123,7 +115,7 @@ export class ReconciliationService {
 
     // Only now is it safe to touch the volume: the adapter provisions directories, and provisioning a
     // volume whose mount has disappeared would write into whatever is mounted at its place instead.
-    const { adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { adapter } = await this.access.forSystem(ownerId, volumeId);
     const volumeRowId = await this.index.ensureVolumeRow(ownerId, volume);
 
     const state: PassState = {
@@ -260,7 +252,7 @@ export class ReconciliationService {
    */
   private async rootIsEmpty(volume: Volume): Promise<boolean> {
     try {
-      const adapter = await this.requireVolumes().inspectAdapter(volume);
+      const adapter = await this.access.inspectForSystem(volume);
       const entries = await adapter.list('/');
       return entries.length === 0;
     } catch {

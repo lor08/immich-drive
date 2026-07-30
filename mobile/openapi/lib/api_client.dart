@@ -419,6 +419,12 @@ class ApiClient {
           return FileVolumeHealthResponseDto.fromJson(value);
         case 'FileVolumeKind':
           return FileVolumeKindTypeTransformer().decode(value);
+        case 'FileVolumeMemberAccess':
+          return FileVolumeMemberAccessTypeTransformer().decode(value);
+        case 'FileVolumeMemberAddDto':
+          return FileVolumeMemberAddDto.fromJson(value);
+        case 'FileVolumeMemberResponseDto':
+          return FileVolumeMemberResponseDto.fromJson(value);
         case 'FileVolumeResponseDto':
           return FileVolumeResponseDto.fromJson(value);
         case 'FileVolumeState':

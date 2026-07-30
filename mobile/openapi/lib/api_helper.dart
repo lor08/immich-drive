@@ -118,6 +118,9 @@ String parameterToString(dynamic value) {
   if (value is FileVolumeKind) {
     return FileVolumeKindTypeTransformer().encode(value).toString();
   }
+  if (value is FileVolumeMemberAccess) {
+    return FileVolumeMemberAccessTypeTransformer().encode(value).toString();
+  }
   if (value is FileVolumeState) {
     return FileVolumeStateTypeTransformer().encode(value).toString();
   }

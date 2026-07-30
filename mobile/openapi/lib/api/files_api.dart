@@ -16,6 +16,63 @@ class FilesApi {
 
   final ApiClient apiClient;
 
+  /// Add a member to a shared volume, or change their access
+  ///
+  /// Grants a user read-only or read-write access to a shared volume. Adding someone who is already a member changes their access rather than failing. A private volume has one owner and no members.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [FileVolumeMemberAddDto] fileVolumeMemberAddDto (required):
+  Future<Response> addFileVolumeMemberWithHttpInfo(FileVolumeMemberAddDto fileVolumeMemberAddDto, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/volumes/members';
+
+    // ignore: prefer_final_locals
+    Object? postBody = fileVolumeMemberAddDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Add a member to a shared volume, or change their access
+  ///
+  /// Grants a user read-only or read-write access to a shared volume. Adding someone who is already a member changes their access rather than failing. A private volume has one owner and no members.
+  ///
+  /// Parameters:
+  ///
+  /// * [FileVolumeMemberAddDto] fileVolumeMemberAddDto (required):
+  Future<FileVolumeMemberResponseDto?> addFileVolumeMember(FileVolumeMemberAddDto fileVolumeMemberAddDto, { Future<void>? abortTrigger, }) async {
+    final response = await addFileVolumeMemberWithHttpInfo(fileVolumeMemberAddDto, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'FileVolumeMemberResponseDto',) as FileVolumeMemberResponseDto;
+    
+    }
+    return null;
+  }
+
   /// Copy a file
   ///
   /// Copies one file inside a volume. The content is staged and renamed into place, so a partial copy is never visible at the target. Copying a folder is not supported: a tree can be arbitrarily large and needs a background job rather than a request.
@@ -444,6 +501,70 @@ class FilesApi {
     return null;
   }
 
+  /// List the members of a shared volume
+  ///
+  /// Lists who may reach a shared volume and with what access. Membership is authoritative state that cannot be reconstructed from the filesystem, so an empty list means nobody rather than everybody.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] volumeId (required):
+  ///   Shared volume whose members are listed
+  Future<Response> getFileVolumeMembersWithHttpInfo(String volumeId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/volumes/members';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// List the members of a shared volume
+  ///
+  /// Lists who may reach a shared volume and with what access. Membership is authoritative state that cannot be reconstructed from the filesystem, so an empty list means nobody rather than everybody.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] volumeId (required):
+  ///   Shared volume whose members are listed
+  Future<List<FileVolumeMemberResponseDto>?> getFileVolumeMembers(String volumeId, { Future<void>? abortTrigger, }) async {
+    final response = await getFileVolumeMembersWithHttpInfo(volumeId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<FileVolumeMemberResponseDto>') as List)
+        .cast<FileVolumeMemberResponseDto>()
+        .toList(growable: false);
+
+    }
+    return null;
+  }
+
   /// List file volumes
   ///
   /// Lists the volumes the current user can address. Content is addressed by volume identifier and a path relative to that volume.
@@ -660,6 +781,66 @@ class FilesApi {
     
     }
     return null;
+  }
+
+  /// Remove a member from a shared volume
+  ///
+  /// Revokes a user access to a shared volume. Their content stays where it is: membership governs who may reach the volume, not who owns what is inside it.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   User to remove
+  ///
+  /// * [String] volumeId (required):
+  ///   Shared volume to remove the member from
+  Future<Response> removeFileVolumeMemberWithHttpInfo(String userId, String volumeId, { Future<void>? abortTrigger, }) async {
+    // ignore: prefer_const_declarations
+    final apiPath = r'/files/volumes/members';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'userId', userId));
+      queryParams.addAll(_queryParams('', 'volumeId', volumeId));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      apiPath,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Remove a member from a shared volume
+  ///
+  /// Revokes a user access to a shared volume. Their content stays where it is: membership governs who may reach the volume, not who owns what is inside it.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   User to remove
+  ///
+  /// * [String] volumeId (required):
+  ///   Shared volume to remove the member from
+  Future<void> removeFileVolumeMember(String userId, String volumeId, { Future<void>? abortTrigger, }) async {
+    final response = await removeFileVolumeMemberWithHttpInfo(userId, volumeId, abortTrigger: abortTrigger,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
   }
 
   /// Restore an entry from the trash

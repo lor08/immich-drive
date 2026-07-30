@@ -7037,6 +7037,165 @@
         "x-immich-permission": "file.read"
       }
     },
+    "/files/volumes/members": {
+      "delete": {
+        "description": "Revokes a user access to a shared volume. Their content stays where it is: membership governs who may reach the volume, not who owns what is inside it.",
+        "operationId": "removeFileVolumeMember",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "query",
+            "description": "User to remove",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Shared volume to remove the member from",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Remove a member from a shared volume",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-admin-only": true,
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.maintenance"
+      },
+      "get": {
+        "description": "Lists who may reach a shared volume and with what access. Membership is authoritative state that cannot be reconstructed from the filesystem, so an empty list means nobody rather than everybody.",
+        "operationId": "getFileVolumeMembers",
+        "parameters": [
+          {
+            "name": "volumeId",
+            "required": true,
+            "in": "query",
+            "description": "Shared volume whose members are listed",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FileVolumeMemberResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List the members of a shared volume",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-admin-only": true,
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.maintenance"
+      },
+      "post": {
+        "description": "Grants a user read-only or read-write access to a shared volume. Adding someone who is already a member changes their access rather than failing. A private volume has one owner and no members.",
+        "operationId": "addFileVolumeMember",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileVolumeMemberAddDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileVolumeMemberResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Add a member to a shared volume, or change their access",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-admin-only": true,
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.maintenance"
+      }
+    },
     "/jobs": {
       "get": {
         "deprecated": true,
@@ -20312,6 +20471,65 @@
           "shared"
         ],
         "type": "string"
+      },
+      "FileVolumeMemberAccess": {
+        "description": "What a member may do in the volume",
+        "enum": [
+          "read-only",
+          "read-write"
+        ],
+        "type": "string"
+      },
+      "FileVolumeMemberAddDto": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/FileVolumeMemberAccess",
+            "default": "read-write"
+          },
+          "userId": {
+            "description": "User to add",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "volumeId": {
+            "description": "Shared volume to add the member to",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "volumeId"
+        ],
+        "type": "object"
+      },
+      "FileVolumeMemberResponseDto": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/FileVolumeMemberAccess"
+          },
+          "email": {
+            "description": "Email of the member",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name of the member",
+            "type": "string"
+          },
+          "userId": {
+            "description": "User the membership belongs to",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access",
+          "email",
+          "name",
+          "userId"
+        ],
+        "type": "object"
       },
       "FileVolumeResponseDto": {
         "properties": {

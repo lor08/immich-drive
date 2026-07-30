@@ -3,17 +3,25 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { DriveIndexService } from 'src/extensions/files/drive-index.service';
+import { DriveMembershipRepository } from 'src/extensions/files/drive-membership.repository';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { toHttpException } from 'src/extensions/files/files.exceptions';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
 import { PathLock } from 'src/extensions/files/path-lock';
 import { PRIVATE_VOLUME_ID, VolumeError, VolumeErrorCode } from 'src/extensions/files/volume';
+import { VolumeAccessService } from 'src/extensions/files/volume-access.service';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 
 /** Runs the handler directly: the lock's own behaviour is covered by its unit tests and a live check. */
 const passthroughLocks = {
   withPathLock: (_volumeId: string, _path: string, handler: () => Promise<unknown>) => handler(),
 } as unknown as PathLock;
+
+/** No shared volume is configured in these cases, so nothing consults membership. */
+const noMembership = {
+  get: () => Promise.resolve(undefined),
+  listForUser: () => Promise.resolve([]),
+} as unknown as DriveMembershipRepository;
 
 /** These cases are about which HTTP status an error becomes, so the index is a no-op here. */
 const noIndex = {
@@ -39,7 +47,11 @@ describe('toHttpException', () => {
 
   beforeEach(async () => {
     storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'immich-drive-errors-'));
-    sut = new FileDomainService(new VolumeRegistry({ storageRoot }), passthroughLocks, noIndex);
+    sut = new FileDomainService(
+      new VolumeAccessService(new VolumeRegistry({ storageRoot }), noMembership),
+      passthroughLocks,
+      noIndex,
+    );
   });
 
   afterEach(async () => {
