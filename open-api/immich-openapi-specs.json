@@ -20193,6 +20193,12 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "hashed": {
+            "description": "Entries given a checksum they did not have, within the configured budget",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "missing": {
             "description": "Index rows this pass newly marked missing because their file is gone; nothing is removed",
             "maximum": 9007199254740991,
@@ -20235,6 +20241,12 @@
             ],
             "description": "Trash findings, present only when the pass completed",
             "nullable": true
+          },
+          "verified": {
+            "description": "Entries whose content was read to settle a modification-time disagreement",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
           "volumeId": {
             "description": "Volume the pass ran on",

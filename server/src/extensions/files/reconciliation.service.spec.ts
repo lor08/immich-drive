@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import {
   DriveEntryRecord,
   DriveEntryRow,
@@ -22,8 +24,11 @@ import { LoggingRepository } from 'src/repositories/logging.repository';
 
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 
-interface StoredEntry extends DriveEntryRecord {
+interface StoredEntry extends Omit<DriveEntryRecord, 'modifiedAt' | 'checksum' | 'checksumAlgorithm'> {
   state: DriveEntryState;
+  modifiedAt: Date;
+  checksum: string | null;
+  checksumAlgorithm: string | null;
 }
 
 /**
@@ -85,13 +90,15 @@ class FakeIndex {
     const rows = this.entries
       .values()
       .filter((entry) => entry.volumeId === volumeId && entry.parentPath === parentPath)
-      .map(({ path: entryPath, name, type, size, modifiedAt, state }) => ({
+      .map(({ path: entryPath, name, type, size, modifiedAt, state, checksum, checksumAlgorithm }) => ({
         path: entryPath,
         name,
         type,
         size,
         modifiedAt,
         state,
+        checksum: checksum ?? null,
+        checksumAlgorithm: checksumAlgorithm ?? null,
       }))
       .toArray()
       .sort((left, right) => left.name.localeCompare(right.name));
@@ -107,7 +114,32 @@ class FakeIndex {
       return Promise.reject(new Error('insert or update on table "drive_entry" violates foreign key constraint'));
     }
 
-    this.entries.set(this.key(entry.volumeId, entry.path), { ...entry, state: DriveEntryState.Present });
+    this.entries.set(this.key(entry.volumeId, entry.path), {
+      ...entry,
+      state: DriveEntryState.Present,
+      checksum: entry.checksum ?? null,
+      checksumAlgorithm: entry.checksumAlgorithm ?? null,
+    });
+    return Promise.resolve();
+  }
+
+  setEntryChecksum(
+    volumeId: string,
+    entryPath: string,
+    update: { checksum: string; checksumAlgorithm: string; modifiedAt?: Date; state?: DriveEntryState },
+  ): Promise<void> {
+    const entry = this.entries.get(this.key(volumeId, entryPath));
+    if (entry) {
+      entry.checksum = update.checksum;
+      entry.checksumAlgorithm = update.checksumAlgorithm;
+      if (update.modifiedAt) {
+        entry.modifiedAt = update.modifiedAt;
+      }
+      if (update.state) {
+        entry.state = update.state;
+      }
+    }
+
     return Promise.resolve();
   }
 
@@ -212,6 +244,26 @@ const systemMembership = {
   get: () => Promise.resolve(undefined),
   listForUser: () => Promise.resolve([]),
 } as unknown as DriveMembershipRepository;
+
+/**
+ * Writes a file the way the server does, so the row gets a digest.
+ *
+ * A write is the only cheap place to learn one, which is why these fixtures go through the domain path
+ * rather than touching the filesystem directly.
+ */
+const writeThrough = async (
+  registry: VolumeRegistry,
+  indexService: DriveIndexService,
+  name: string,
+  content: string,
+) => {
+  const { adapter } = await registry.getTarget(OWNER, PRIVATE_VOLUME_ID);
+  const [volume] = registry.describeVolumes(OWNER);
+  const written = await adapter.write(`/${name}`, Readable.from([Buffer.from(content)]));
+  await indexService.recordEntry(OWNER, volume, written);
+
+  return written;
+};
 
 const newLogger = () => ({ setContext: vi.fn(), warn: vi.fn(), log: vi.fn() }) as unknown as LoggingRepository;
 
@@ -664,6 +716,115 @@ describe(ReconciliationService.name, () => {
       await indexService.recordEntry(OWNER, volume, entry!);
 
       expect(index.row('/report.txt')?.state).toBe(DriveEntryState.Present);
+    });
+  });
+
+  describe('checksums', () => {
+    it('records the digest of what an upload actually wrote', async () => {
+      const written = await writeThrough(registry, indexService, 'report.txt', 'contents');
+
+      expect(written.checksumAlgorithm).toBe('sha256');
+      expect(written.checksum).toBe(createHash('sha256').update('contents').digest('hex'));
+      expect(index.row('/report.txt')?.checksum).toBe(written.checksum);
+    });
+
+    /**
+     * The wart this task exists for. A `touch`, an `rsync` without `--checksum`, a restore — the bytes are
+     * the same and only the timestamp moved, and before checksums that left the row conflicted for good.
+     */
+    it('recovers a file whose timestamp moved but whose bytes did not', async () => {
+      await writeThrough(registry, indexService, 'report.txt', 'contents');
+      const later = new Date(Date.now() + 60_000);
+      await fs.utimes(path.join(filesPath, 'report.txt'), later, later);
+
+      const report = await indexFromDisk();
+
+      expect(report).toMatchObject({ verified: 1, recovered: 1, conflicted: 0 });
+      expect(index.row('/report.txt')).toMatchObject({ state: DriveEntryState.Present });
+      // The row took the new time, so the next pass has nothing left to verify.
+      await expect(indexFromDisk()).resolves.toMatchObject({ verified: 0, recovered: 0, conflicted: 0 });
+    });
+
+    it('conflicts a file whose bytes changed under an unchanged size', async () => {
+      await writeThrough(registry, indexService, 'report.txt', 'contents');
+      const later = new Date(Date.now() + 60_000);
+      // Same length, different content: only a digest can tell these apart.
+      await fs.writeFile(path.join(filesPath, 'report.txt'), 'CONTENTS');
+      await fs.utimes(path.join(filesPath, 'report.txt'), later, later);
+
+      const report = await indexFromDisk();
+
+      expect(report).toMatchObject({ verified: 1, conflicted: 1, recovered: 0 });
+      expect(index.row('/report.txt')?.state).toBe(DriveEntryState.Conflicted);
+    });
+
+    it('does not read a file whose size disagrees', async () => {
+      await writeThrough(registry, indexService, 'report.txt', 'contents');
+      await fs.writeFile(path.join(filesPath, 'report.txt'), 'contents, much longer now');
+
+      const report = await indexFromDisk();
+
+      // Different lengths cannot be the same bytes, so the pass concludes without a read.
+      expect(report).toMatchObject({ conflicted: 1, verified: 0 });
+    });
+
+    it('treats a row with no digest exactly as it did before', async () => {
+      await write('outside.txt', 'contents');
+      await indexFromDisk();
+      const later = new Date(Date.now() + 60_000);
+      await fs.utimes(path.join(filesPath, 'outside.txt'), later, later);
+
+      const report = await indexFromDisk();
+
+      expect(report).toMatchObject({ conflicted: 1, verified: 0, hashed: 0 });
+    });
+
+    it('hashes nothing for backfill unless a budget is configured', async () => {
+      await write('outside.txt', 'contents');
+
+      const report = await indexFromDisk();
+
+      expect(report.hashed).toBe(0);
+      expect(index.row('/outside.txt')?.checksum).toBeNull();
+    });
+
+    it('gives existing files a digest when a budget allows it', async () => {
+      await write('one.txt', 'first');
+      await write('two.txt', 'second');
+      await indexFromDisk();
+      configure({ checksumBudgetBytes: 1024 });
+
+      const report = await indexFromDisk();
+
+      expect(report.hashed).toBe(2);
+      expect(index.row('/one.txt')?.checksum).toBe(createHash('sha256').update('first').digest('hex'));
+      expect(index.row('/two.txt')?.checksumAlgorithm).toBe('sha256');
+    });
+
+    it('stops backfilling when the budget is spent, and continues next pass', async () => {
+      await write('one.txt', 'aaaaaaaaaa');
+      await write('two.txt', 'bbbbbbbbbb');
+      await indexFromDisk();
+      // Smaller than one file, so the first file is hashed and the second is left for later.
+      configure({ checksumBudgetBytes: 1 });
+
+      const first = await indexFromDisk();
+      expect(first.hashed).toBe(1);
+
+      const second = await indexFromDisk();
+      expect(second.hashed).toBe(1);
+      await expect(indexFromDisk()).resolves.toMatchObject({ hashed: 0 });
+    });
+
+    it('reports a digest it could not compute rather than failing the pass', async () => {
+      await write('one.txt', 'contents');
+      await indexFromDisk();
+      configure({ checksumBudgetBytes: 1024 });
+      const { adapter } = await registry.getTarget(OWNER, PRIVATE_VOLUME_ID);
+      vi.spyOn(adapter, 'digest').mockRejectedValue(new Error('read error'));
+
+      await expect(indexFromDisk()).resolves.toMatchObject({ hashed: 0, conflicted: 0 });
+      expect(index.row('/one.txt')?.checksum).toBeNull();
     });
   });
 

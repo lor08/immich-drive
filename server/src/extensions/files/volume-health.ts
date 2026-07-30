@@ -51,6 +51,10 @@ export interface ReconcileReport {
   readonly conflicted: number;
   readonly missing: number;
   readonly recovered: number;
+  /** Entries whose bytes were read to settle a modification-time disagreement. */
+  readonly verified: number;
+  /** Entries given a digest they did not have, within the configured budget. */
+  readonly hashed: number;
   readonly resumedFrom: string | null;
   readonly stoppedAt: string | null;
   readonly trash: TrashReport | null;

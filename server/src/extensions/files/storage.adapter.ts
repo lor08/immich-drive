@@ -1,4 +1,4 @@
-import { FileEntry, TrashRecord } from 'src/extensions/files/file-entry';
+import { FileEntry, TrashRecord, WrittenEntry } from 'src/extensions/files/file-entry';
 
 export interface StorageRange {
   readonly offset: number;
@@ -44,9 +44,20 @@ export abstract class StorageAdapter {
   abstract list(path: string): Promise<readonly FileEntry[]>;
   abstract createDirectory(path: string): Promise<FileEntry>;
   abstract open(path: string, range?: StorageRange): Promise<AsyncIterable<Uint8Array>>;
-  abstract write(path: string, content: AsyncIterable<Uint8Array>, options?: StorageWriteOptions): Promise<FileEntry>;
+  abstract write(
+    path: string,
+    content: AsyncIterable<Uint8Array>,
+    options?: StorageWriteOptions,
+  ): Promise<WrittenEntry>;
+  /**
+   * The digest of a file's current content.
+   *
+   * Reads every byte, so callers are expected to have a reason: verifying a disagreement, or filling in a
+   * digest under an explicit budget. Nothing on the request path uses it.
+   */
+  abstract digest(path: string): Promise<string>;
   abstract move(sourcePath: string, targetPath: string): Promise<void>;
-  abstract copy(sourcePath: string, targetPath: string): Promise<FileEntry>;
+  abstract copy(sourcePath: string, targetPath: string): Promise<WrittenEntry>;
   abstract delete(path: string, options?: StorageDeleteOptions): Promise<void>;
 
   /**

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -731,6 +732,47 @@ describe(LocalStorageAdapter.name, () => {
       }
 
       await expect(countOpenDescriptors()).resolves.toBeLessThanOrEqual(before);
+    });
+  });
+
+  describe('checksums', () => {
+    let staging: string;
+    let writable: LocalStorageAdapter;
+
+    beforeEach(async () => {
+      staging = path.join(workspace, 'checksum-staging');
+      await fs.mkdir(staging);
+      writable = await LocalStorageAdapter.create(root, staging);
+    });
+
+    it('reports the digest of what it wrote', async () => {
+      const written = await writable.write('/report.txt', Readable.from([Buffer.from('contents')]));
+
+      expect(written.checksumAlgorithm).toBe('sha256');
+      expect(written.checksum).toBe(createHash('sha256').update('contents').digest('hex'));
+    });
+
+    it('hashes across chunk boundaries rather than per chunk', async () => {
+      const written = await writable.write(
+        '/chunked.txt',
+        Readable.from([Buffer.from('con'), Buffer.from('ten'), Buffer.from('ts')]),
+      );
+
+      expect(written.checksum).toBe(createHash('sha256').update('contents').digest('hex'));
+    });
+
+    it('digests a file that is already there', async () => {
+      await fs.writeFile(path.join(root, 'existing.txt'), 'contents');
+
+      await expect(adapter.digest('/existing.txt')).resolves.toBe(
+        createHash('sha256').update('contents').digest('hex'),
+      );
+    });
+
+    it('refuses to digest a directory, like every other read of one', async () => {
+      await fs.mkdir(path.join(root, 'documents'));
+
+      await expect(adapter.digest('/documents')).rejects.toMatchObject({ code: 'entry-not-file' });
     });
   });
 

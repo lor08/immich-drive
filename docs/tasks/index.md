@@ -52,6 +52,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0027-reconciliation-and-health.md`   | `P1-06`         | Reconciliation and volume health       | Done       | #57   | #60          | Health gates every conclusion; the trash is reported rather than indexed, and retention is opt-in. |
 | `0028-scheduled-reconciliation.md`    | `P1-20`         | Scheduled reconciliation               | Active     | #62   | #63          | Takes the job-queue seam; the schedule comes from the environment and is off by default.           |
 | `0029-shared-volume-authorization.md` | `P1-07`         | Shared-volume authorization            | Active     | #64   | pending      | First Drive state that is not a cache; one decision point for every file operation (ADR 0012).     |
+| `0030-checksums.md`                   | `P1-13`         | Checksums and integrity state          | Active     | #66   | #67          | Hashes only where it decides something; backfill is opt-in and bounded.                            |
 | `0013-fork-runnable-ci.md`            | `P0-14`         | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever.         |
 
 ## Promotable work with accepted decisions and no Issue yet

@@ -3,12 +3,27 @@ export enum FileEntryType {
   Directory = 'directory',
 }
 
+/** The digest algorithm the server uses for content it writes. Recorded per row; see ADR 0011. */
+export const CHECKSUM_ALGORITHM = 'sha256';
+
 export interface FileEntry {
   readonly path: string;
   readonly name: string;
   readonly type: FileEntryType;
   readonly size: number;
   readonly modifiedAt: Date;
+}
+
+/**
+ * An entry the server just wrote, with the digest of what it wrote.
+ *
+ * A separate type from `FileEntry` on purpose: `stat` and `list` cannot produce a digest without reading
+ * the whole file, so a checksum is only ever present where the bytes already passed through the server.
+ * Anything that accepts a plain `FileEntry` therefore cannot silently assume one.
+ */
+export interface WrittenEntry extends FileEntry {
+  readonly checksum: string;
+  readonly checksumAlgorithm: string;
 }
 
 /**

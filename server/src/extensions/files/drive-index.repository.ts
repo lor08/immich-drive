@@ -27,6 +27,9 @@ export interface DriveEntryRecord {
   readonly type: FileEntryType;
   readonly size: number;
   readonly modifiedAt: Date;
+  /** Present only where the server saw the bytes; see `WrittenEntry`. */
+  readonly checksum?: string | null;
+  readonly checksumAlgorithm?: string | null;
 }
 
 export interface DriveVolumeRow {
@@ -46,6 +49,8 @@ export interface DriveEntryRow {
   readonly size: number;
   readonly modifiedAt: Date;
   readonly state: DriveEntryState;
+  readonly checksum: string | null;
+  readonly checksumAlgorithm: string | null;
 }
 
 export interface DriveMoveRecord {
@@ -116,7 +121,7 @@ export class DriveIndexRepository {
   async getChildren(volumeId: string, parentPath: string): Promise<DriveEntryRow[]> {
     return this.db
       .selectFrom('drive_entry')
-      .select(['path', 'name', 'type', 'size', 'modifiedAt', 'state'])
+      .select(['path', 'name', 'type', 'size', 'modifiedAt', 'state', 'checksum', 'checksumAlgorithm'])
       .where('volumeId', '=', volumeId)
       .where('parentPath', '=', parentPath)
       .orderBy('name')
@@ -155,6 +160,32 @@ export class DriveIndexRepository {
       .executeTakeFirst();
 
     return Number(result.numUpdatedRows);
+  }
+
+  /**
+   * Records a digest, and optionally the timestamp that came with it.
+   *
+   * Two callers, both in reconciliation: verification, which has just proved the bytes are unchanged and
+   * needs the row to stop disagreeing about the time; and backfill, which learned the digest of a file it
+   * already agreed with. Neither may touch `size`, because a size difference is never resolved this way.
+   */
+  async setEntryChecksum(
+    volumeId: string,
+    path: string,
+    checksum: { checksum: string; checksumAlgorithm: string; modifiedAt?: Date; state?: DriveEntryState },
+  ): Promise<void> {
+    await this.db
+      .updateTable('drive_entry')
+      .set({
+        checksum: checksum.checksum,
+        checksumAlgorithm: checksum.checksumAlgorithm,
+        ...(checksum.modifiedAt && { modifiedAt: checksum.modifiedAt }),
+        ...(checksum.state && { state: checksum.state }),
+        updatedAt: sql<Date>`now()`,
+      })
+      .where('volumeId', '=', volumeId)
+      .where('path', '=', path)
+      .execute();
   }
 
   /** Where an interrupted pass stopped, so the next one resumes instead of restarting. */
@@ -240,6 +271,10 @@ export class DriveIndexRepository {
           size: eb.ref('excluded.size'),
           modifiedAt: eb.ref('excluded.modifiedAt'),
           state: eb.ref('excluded.state'),
+          // `coalesce`, not `excluded`: a write carries a digest and a discovery does not, and the second
+          // must not erase what the first learned about the same bytes.
+          checksum: sql<string>`coalesce(excluded."checksum", "drive_entry"."checksum")`,
+          checksumAlgorithm: sql<string>`coalesce(excluded."checksumAlgorithm", "drive_entry"."checksumAlgorithm")`,
           updatedAt: sql<Date>`now()`,
         })),
       )

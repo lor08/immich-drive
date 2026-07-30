@@ -1,8 +1,14 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants, type BigIntStats, type Stats } from 'node:fs';
 import fs, { type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
-import { FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
+import {
+  CHECKSUM_ALGORITHM,
+  FileEntry,
+  FileEntryType,
+  TrashRecord,
+  WrittenEntry,
+} from 'src/extensions/files/file-entry';
 import {
   StorageAdapter,
   StorageDeleteOptions,
@@ -362,7 +368,7 @@ export class LocalStorageAdapter extends StorageAdapter {
     virtualPath: string,
     content: AsyncIterable<Uint8Array>,
     options?: StorageWriteOptions,
-  ): Promise<FileEntry> {
+  ): Promise<WrittenEntry> {
     const stagingRoot = this.requireStagingRoot();
 
     const { normalized: normalizedPath, parentPath, name } = this.splitPath(virtualPath);
@@ -394,8 +400,12 @@ export class LocalStorageAdapter extends StorageAdapter {
 
       // 'wx' so a staging name can never be reused, and owner-only from the moment it exists.
       const staging = await fs.open(stagingPath, 'wx', FILE_MODE);
+      // Hashed in the same pass that writes: the bytes are already in hand, so the digest is free, and it
+      // describes exactly what was written rather than whatever is at the path afterwards.
+      const hash = createHash(CHECKSUM_ALGORITHM);
       try {
         for await (const chunk of content) {
+          hash.update(chunk);
           await staging.write(chunk);
         }
         // Flush before the rename, so a crash cannot publish an empty or truncated file.
@@ -412,7 +422,11 @@ export class LocalStorageAdapter extends StorageAdapter {
       }
 
       try {
-        return this.toFileEntry(normalizedPath, written.stats);
+        return {
+          ...this.toFileEntry(normalizedPath, written.stats),
+          checksum: hash.digest('hex'),
+          checksumAlgorithm: CHECKSUM_ALGORITHM,
+        };
       } finally {
         await written.handle.close();
       }
@@ -509,7 +523,7 @@ export class LocalStorageAdapter extends StorageAdapter {
    * progress and cancellation, which belongs to a background job rather than to a request. The copy
    * goes through the same staged write as an upload, so a partial copy is never visible at the target.
    */
-  override async copy(sourcePath: string, targetPath: string): Promise<FileEntry> {
+  override async copy(sourcePath: string, targetPath: string): Promise<WrittenEntry> {
     // Checked before resolving anything, so a read-only volume answers the same way whether or not
     // the source happens to exist.
     this.requireStagingRoot();
@@ -531,6 +545,21 @@ export class LocalStorageAdapter extends StorageAdapter {
     // Re-opened rather than streamed from the handle above, because `open` is the one place that
     // pins a file for reading, and the target is written before either path is reported.
     return this.write(targetPath, await this.open(sourcePath));
+  }
+
+  /**
+   * The digest of what is at a path right now.
+   *
+   * Streams through `open`, so it inherits the same containment and the same refusal of anything that is
+   * not a regular file, and it holds no more than one chunk in memory at a time.
+   */
+  override async digest(virtualPath: string): Promise<string> {
+    const hash = createHash(CHECKSUM_ALGORITHM);
+    for await (const chunk of await this.open(virtualPath)) {
+      hash.update(chunk);
+    }
+
+    return hash.digest('hex');
   }
 
   /**
