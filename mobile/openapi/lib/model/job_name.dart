@@ -29,6 +29,8 @@ enum JobName {
   assetGenerateThumbnails._(r'AssetGenerateThumbnails'),
   auditTableCleanup._(r'AuditTableCleanup'),
   databaseBackup._(r'DatabaseBackup'),
+  driveReconcileQueueAll._(r'DriveReconcileQueueAll'),
+  driveReconcileVolume._(r'DriveReconcileVolume'),
   facialRecognitionQueueAll._(r'FacialRecognitionQueueAll'),
   facialRecognition._(r'FacialRecognition'),
   fileDelete._(r'FileDelete'),
@@ -154,6 +156,8 @@ class JobNameTypeTransformer {
         case r'AssetGenerateThumbnails': return JobName.assetGenerateThumbnails;
         case r'AuditTableCleanup': return JobName.auditTableCleanup;
         case r'DatabaseBackup': return JobName.databaseBackup;
+        case r'DriveReconcileQueueAll': return JobName.driveReconcileQueueAll;
+        case r'DriveReconcileVolume': return JobName.driveReconcileVolume;
         case r'FacialRecognitionQueueAll': return JobName.facialRecognitionQueueAll;
         case r'FacialRecognition': return JobName.facialRecognition;
         case r'FileDelete': return JobName.fileDelete;

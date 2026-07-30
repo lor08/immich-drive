@@ -1,3 +1,4 @@
+import { DriveJobService } from 'src/extensions/files/drive-job.service';
 import { ActivityService } from 'src/services/activity.service';
 import { AlbumService } from 'src/services/album.service';
 import { ApiKeyService } from 'src/services/api-key.service';
@@ -63,6 +64,9 @@ export const services = [
   DatabaseBackupService,
   DatabaseService,
   DownloadService,
+  // Immich Drive: the handler for its queued reconciliation jobs. Job discovery walks this list, and a
+  // JobName without a handler stops the server from starting, so this entry is what makes the seam real.
+  DriveJobService,
   DuplicateService,
   IntegrityService,
   HlsService,

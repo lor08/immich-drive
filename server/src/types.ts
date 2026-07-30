@@ -227,6 +227,21 @@ export interface IBaseJob {
   force?: boolean;
 }
 
+/**
+ * One Immich Drive reconciliation pass.
+ *
+ * `ownerId` and `volumeId` together name a volume the way every file-domain entry point does, so the job
+ * carries no host path and no database identifier. `attempt` exists to bound the chain of jobs a large
+ * tree produces: a pass that stops at its limit queues the next one, and a chain that stops making
+ * progress must end rather than run forever.
+ */
+export interface IDriveReconcileJob {
+  ownerId: string;
+  volumeId: string;
+  attempt?: number;
+  resumedFrom?: string | null;
+}
+
 export interface IDelayedJob extends IBaseJob {
   /** The minimum time to wait to execute this job, in milliseconds. */
   delay?: number;
@@ -389,6 +404,10 @@ export type JobItem =
   // Metadata Extraction
   | { name: JobName.AssetExtractMetadataQueueAll; data: IBaseJob }
   | { name: JobName.AssetExtractMetadata; data: IEntityJob }
+
+  // Immich Drive reconciliation
+  | { name: JobName.DriveReconcileQueueAll; data?: IBaseJob }
+  | { name: JobName.DriveReconcileVolume; data: IDriveReconcileJob }
 
   // Notifications
   | { name: JobName.NotificationsCleanup; data?: IBaseJob }

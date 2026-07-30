@@ -7891,6 +7891,8 @@ export enum JobName {
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
     AuditTableCleanup = "AuditTableCleanup",
     DatabaseBackup = "DatabaseBackup",
+    DriveReconcileQueueAll = "DriveReconcileQueueAll",
+    DriveReconcileVolume = "DriveReconcileVolume",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",
     FileDelete = "FileDelete",
