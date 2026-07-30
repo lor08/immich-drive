@@ -3,15 +3,19 @@ import { ClsModule } from 'nestjs-cls';
 import { StorageCore } from 'src/cores/storage.core';
 import { DriveIndexRepository } from 'src/extensions/files/drive-index.repository';
 import { DriveIndexService } from 'src/extensions/files/drive-index.service';
+import { DriveMembershipRepository } from 'src/extensions/files/drive-membership.repository';
 import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { DRIVE_CONFIG, DriveConfig } from 'src/extensions/files/files.config';
 import { FilesController } from 'src/extensions/files/files.controller';
 import { PathLock } from 'src/extensions/files/path-lock';
 import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
 import { validateStorageRoot } from 'src/extensions/files/storage-root.validator';
+import { VolumeAccessService } from 'src/extensions/files/volume-access.service';
+import { VolumeMembershipService } from 'src/extensions/files/volume-membership.service';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 import { ConfigRepository } from 'src/repositories/config.repository';
 import { LoggingRepository } from 'src/repositories/logging.repository';
+import { UserRepository } from 'src/repositories/user.repository';
 
 /**
  * The Immich Drive file domain.
@@ -46,6 +50,10 @@ export class FilesModule implements OnApplicationBootstrap {
         LoggingRepository,
         DriveIndexRepository,
         DriveIndexService,
+        DriveMembershipRepository,
+        VolumeAccessService,
+        VolumeMembershipService,
+        UserRepository,
         ReconciliationService,
         {
           provide: VolumeRegistry,

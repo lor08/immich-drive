@@ -37,10 +37,15 @@ import {
   FileTrashRestoreDto,
   FileUploadDto,
   FileVolumeHealthResponseDto,
+  FileVolumeMemberAddDto,
+  FileVolumeMemberListDto,
+  FileVolumeMemberRemoveDto,
+  FileVolumeMemberResponseDto,
   FileVolumeResponseDto,
 } from 'src/extensions/files/files.dto';
 import { FileDomainErrorInterceptor } from 'src/extensions/files/files.interceptor';
 import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
+import { VolumeMembershipService } from 'src/extensions/files/volume-membership.service';
 import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard';
 
 @ApiTags(ApiTag.Files)
@@ -50,7 +55,55 @@ export class FilesController {
   constructor(
     private service: FileDomainService,
     private reconciliation: ReconciliationService,
+    private membership: VolumeMembershipService,
   ) {}
+
+  @Get('volumes/members')
+  @Authenticated({ permission: Permission.FileMaintenance, admin: true })
+  @Endpoint({
+    summary: 'List the members of a shared volume',
+    description:
+      'Lists who may reach a shared volume and with what access. Membership is authoritative state that cannot be reconstructed from the filesystem, so an empty list means nobody rather than everybody.',
+    history: HistoryBuilder.v3(),
+  })
+  async getFileVolumeMembers(
+    @Auth() auth: AuthDto,
+    @Query() dto: FileVolumeMemberListDto,
+  ): Promise<FileVolumeMemberResponseDto[]> {
+    const members = await this.membership.listMembers(dto.volumeId);
+    // Mapped rather than returned: the row also carries the volume key, which is an internal identifier
+    // and not part of what this endpoint promises.
+    return members.map(({ userId, email, name, access }) => ({ userId, email, name, access }));
+  }
+
+  @Post('volumes/members')
+  @Authenticated({ permission: Permission.FileMaintenance, admin: true })
+  @Endpoint({
+    summary: 'Add a member to a shared volume, or change their access',
+    description:
+      'Grants a user read-only or read-write access to a shared volume. Adding someone who is already a member changes their access rather than failing. A private volume has one owner and no members.',
+    history: HistoryBuilder.v3(),
+  })
+  async addFileVolumeMember(
+    @Auth() auth: AuthDto,
+    @Body() dto: FileVolumeMemberAddDto,
+  ): Promise<FileVolumeMemberResponseDto> {
+    const { userId, email, name, access } = await this.membership.addMember(dto.volumeId, dto.userId, dto.access);
+    return { userId, email, name, access };
+  }
+
+  @Delete('volumes/members')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Authenticated({ permission: Permission.FileMaintenance, admin: true })
+  @Endpoint({
+    summary: 'Remove a member from a shared volume',
+    description:
+      'Revokes a user access to a shared volume. Their content stays where it is: membership governs who may reach the volume, not who owns what is inside it.',
+    history: HistoryBuilder.v3(),
+  })
+  async removeFileVolumeMember(@Auth() auth: AuthDto, @Query() dto: FileVolumeMemberRemoveDto): Promise<void> {
+    await this.membership.removeMember(dto.volumeId, dto.userId);
+  }
 
   @Get('volumes/health')
   @Authenticated({ permission: Permission.FileRead })

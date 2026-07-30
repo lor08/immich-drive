@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DriveIndexService } from 'src/extensions/files/drive-index.service';
 import { FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
 import { LocalStorageAdapterError, LocalStorageErrorCode } from 'src/extensions/files/local-storage.adapter';
@@ -10,7 +10,7 @@ import {
   TrashPurgeResult,
 } from 'src/extensions/files/storage.adapter';
 import { Volume } from 'src/extensions/files/volume';
-import { VolumeRegistry } from 'src/extensions/files/volume.registry';
+import { VolumeAccessService, VolumeNeed } from 'src/extensions/files/volume-access.service';
 
 /**
  * Lock key for a trash record.
@@ -23,42 +23,33 @@ const trashLockKey = (trashId: string): string => `trash:${trashId}`;
 /**
  * Entry point for file-domain operations.
  *
- * Every operation is scoped to an owner and a volume. The service never receives a host path and
- * never returns one: the registry maps a volume identifier to the adapter confined to that volume.
+ * Every operation is scoped to an owner and a volume. The service never receives a host path and never
+ * returns one, and it no longer holds the volume registry: an adapter comes only from
+ * `VolumeAccessService`, which decides whether this caller may do this to this volume. A new entry point
+ * therefore cannot reach storage without stating what it needs — see
+ * [ADR 0012](../../../../docs/adr/0012-shared-volume-membership.md).
  */
 @Injectable()
 export class FileDomainService {
   constructor(
-    @Inject(VolumeRegistry) private readonly volumes: VolumeRegistry | null,
+    private readonly access: VolumeAccessService,
     private readonly locks: PathLock,
     private readonly index: DriveIndexService,
   ) {}
 
-  /**
-   * The registry exists only when the domain is configured. Every entry point goes through here so
-   * an unconfigured deployment answers consistently instead of failing somewhere deeper.
-   */
-  private requireVolumes(): VolumeRegistry {
-    if (!this.volumes) {
-      throw new BadRequestException('Immich Drive file storage is not enabled');
-    }
-
-    return this.volumes;
-  }
-
   // Async so an unconfigured domain rejects like every other entry point instead of throwing
   // synchronously, which would make the contract depend on which method a caller happened to use.
   async listVolumes(ownerId: string): Promise<Volume[]> {
-    return this.requireVolumes().listVolumes(ownerId);
+    return this.access.listVolumes(ownerId);
   }
 
   async getEntry(ownerId: string, volumeId: string, path: string): Promise<FileEntry | null> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Read);
     return adapter.stat(path);
   }
 
   async listEntries(ownerId: string, volumeId: string, path: string): Promise<readonly FileEntry[]> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Read);
     return adapter.list(path);
   }
 
@@ -71,7 +62,7 @@ export class FileDomainService {
     volumeId: string,
     path: string,
   ): Promise<{ entry: FileEntry; content: AsyncIterable<Uint8Array> }> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Read);
 
     const entry = await adapter.stat(path);
     if (!entry) {
@@ -90,7 +81,7 @@ export class FileDomainService {
    * same target.
    */
   async createFolder(ownerId: string, volumeId: string, path: string): Promise<FileEntry> {
-    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { volume, adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
 
     return this.locks.withPathLock(volumeId, path, async () => {
       const entry = await adapter.createDirectory(path);
@@ -110,7 +101,7 @@ export class FileDomainService {
     content: AsyncIterable<Uint8Array>,
     options?: StorageWriteOptions,
   ): Promise<FileEntry> {
-    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { volume, adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
 
     return this.locks.withPathLock(volumeId, path, async () => {
       const entry = await adapter.write(path, content, options);
@@ -125,7 +116,7 @@ export class FileDomainService {
     path: string,
     range?: StorageRange,
   ): Promise<AsyncIterable<Uint8Array>> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Read);
     return adapter.open(path, range);
   }
 
@@ -137,7 +128,7 @@ export class FileDomainService {
    * therefore ordered by the lock layer rather than by the caller, which turns that pair into a queue.
    */
   async moveEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<void> {
-    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { volume, adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
 
     return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], async () => {
       await adapter.move(sourcePath, targetPath);
@@ -160,7 +151,7 @@ export class FileDomainService {
    * between the check that it is a regular file and the read that follows.
    */
   async copyEntry(ownerId: string, volumeId: string, sourcePath: string, targetPath: string): Promise<FileEntry> {
-    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { volume, adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
 
     return this.locks.withPathLocks(volumeId, [sourcePath, targetPath], async () => {
       const entry = await adapter.copy(sourcePath, targetPath);
@@ -170,13 +161,13 @@ export class FileDomainService {
   }
 
   async deleteEntry(ownerId: string, volumeId: string, path: string, options?: StorageDeleteOptions): Promise<void> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
     return adapter.delete(path, options);
   }
 
   /** Moves an entry to the trash, holding the lock on the path it leaves. */
   async trashEntry(ownerId: string, volumeId: string, path: string): Promise<TrashRecord> {
-    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { volume, adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
 
     return this.locks.withPathLock(volumeId, path, async () => {
       const record = await adapter.trash(path);
@@ -188,7 +179,7 @@ export class FileDomainService {
   }
 
   async listTrash(ownerId: string, volumeId: string): Promise<readonly TrashRecord[]> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Read);
     return adapter.listTrash();
   }
 
@@ -200,7 +191,7 @@ export class FileDomainService {
    * same record from running at once; locking the target is what stops two restores landing there.
    */
   async restoreFromTrash(ownerId: string, volumeId: string, trashId: string, targetPath?: string): Promise<FileEntry> {
-    const { volume, adapter } = await this.requireVolumes().getTarget(ownerId, volumeId);
+    const { volume, adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
     const keys = [trashLockKey(trashId), ...(targetPath === undefined ? [] : [targetPath])];
 
     return this.locks.withPathLocks(volumeId, keys, async () => {
@@ -221,7 +212,7 @@ export class FileDomainService {
    * the only thing two callers can contend over.
    */
   async purgeFromTrash(ownerId: string, volumeId: string, trashId: string): Promise<void> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
 
     return this.locks.withPathLock(volumeId, trashLockKey(trashId), () => adapter.purgeFromTrash(trashId));
   }
@@ -235,7 +226,7 @@ export class FileDomainService {
    * reported in the failed count.
    */
   async emptyTrash(ownerId: string, volumeId: string): Promise<TrashPurgeResult> {
-    const adapter = await this.requireVolumes().getAdapter(ownerId, volumeId);
+    const { adapter } = await this.access.forUser(ownerId, volumeId, VolumeNeed.Write);
     return adapter.emptyTrash();
   }
 }

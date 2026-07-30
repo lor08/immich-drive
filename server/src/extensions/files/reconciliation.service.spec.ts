@@ -9,10 +9,12 @@ import {
   DriveVolumeRow,
 } from 'src/extensions/files/drive-index.repository';
 import { DriveIndexService } from 'src/extensions/files/drive-index.service';
+import { DriveMembershipRepository } from 'src/extensions/files/drive-membership.repository';
 import { DriveConfig } from 'src/extensions/files/files.config';
 import { DriveEntryState, DriveVolumeState } from 'src/extensions/files/index-state';
 import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
 import { PRIVATE_VOLUME_ID } from 'src/extensions/files/volume';
+import { VolumeAccessService } from 'src/extensions/files/volume-access.service';
 import { VolumeHealthReason } from 'src/extensions/files/volume-health';
 import { VOLUME_MARKER_NAME } from 'src/extensions/files/volume-identity';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
@@ -202,6 +204,15 @@ const trashEntry = async (registry: VolumeRegistry, filesPath: string, name: str
   return record;
 };
 
+/**
+ * Reconciliation is system work, so it never consults membership — a repository that answers "no member"
+ * to everything is exactly the right fake: if a pass ever asked, these tests would fail.
+ */
+const systemMembership = {
+  get: () => Promise.resolve(undefined),
+  listForUser: () => Promise.resolve([]),
+} as unknown as DriveMembershipRepository;
+
 const newLogger = () => ({ setContext: vi.fn(), warn: vi.fn(), log: vi.fn() }) as unknown as LoggingRepository;
 
 describe(ReconciliationService.name, () => {
@@ -215,7 +226,7 @@ describe(ReconciliationService.name, () => {
 
   const configure = (config: Partial<Extract<DriveConfig, { enabled: true }>> = {}) => {
     sut = new ReconciliationService(
-      registry,
+      new VolumeAccessService(registry, systemMembership),
       { enabled: true, root: storageRoot, ...config },
       index.asRepository(),
       indexService,
@@ -844,7 +855,7 @@ describe(ReconciliationService.name, () => {
 
   it('reports that file storage is not enabled when the domain is unconfigured', async () => {
     const disabled = new ReconciliationService(
-      null,
+      new VolumeAccessService(null, systemMembership),
       { enabled: false },
       index.asRepository(),
       indexService,

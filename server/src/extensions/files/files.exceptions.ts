@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   InternalServerErrorException,
   NotFoundException,
@@ -42,6 +43,10 @@ const VOLUME_STATUS: Record<VolumeErrorCode, (message: string) => HttpException>
   // An unaddressable volume is reported as missing rather than as a bad request, so probing for
   // volumes that belong to someone else cannot be told apart from probing for ones that do not exist.
   [VolumeErrorCode.UnknownVolume]: () => new NotFoundException('Volume not found'),
+
+  // A member who may read but not write is told exactly that: answering "not found" about a volume they
+  // can list would be a worse answer than refusing the operation. See ADR 0012.
+  [VolumeErrorCode.ReadOnlyVolume]: (message) => new ForbiddenException(message),
 
   // Both come from trusted sources, so reaching here means a deployment or session defect.
   [VolumeErrorCode.InvalidOwner]: () => new InternalServerErrorException('Volume owner is not usable'),

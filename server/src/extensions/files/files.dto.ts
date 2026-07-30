@@ -101,6 +101,47 @@ const ReconcileResultSchema = z
   })
   .meta({ id: 'FileReconcileResponseDto' });
 
+const VolumeMemberAccessSchema = z
+  .enum(VolumeAccess)
+  .describe('What a member may do in the volume')
+  .meta({ id: 'FileVolumeMemberAccess' });
+
+/**
+ * One member of a shared volume.
+ *
+ * The email and name are included because an administrator manages people, not identifiers; nothing here
+ * is a host path or a storage detail.
+ */
+const VolumeMemberSchema = z
+  .object({
+    userId: z.string().uuid().describe('User the membership belongs to'),
+    email: z.string().describe('Email of the member'),
+    name: z.string().describe('Display name of the member'),
+    access: VolumeMemberAccessSchema,
+  })
+  .meta({ id: 'FileVolumeMemberResponseDto' });
+
+const VolumeMemberListSchema = z
+  .object({
+    volumeId: z.string().describe('Shared volume whose members are listed'),
+  })
+  .meta({ id: 'FileVolumeMemberListDto' });
+
+const VolumeMemberAddSchema = z
+  .object({
+    volumeId: z.string().describe('Shared volume to add the member to'),
+    userId: z.string().uuid().describe('User to add'),
+    access: VolumeMemberAccessSchema.default(VolumeAccess.ReadWrite),
+  })
+  .meta({ id: 'FileVolumeMemberAddDto' });
+
+const VolumeMemberRemoveSchema = z
+  .object({
+    volumeId: z.string().describe('Shared volume to remove the member from'),
+    userId: z.string().uuid().describe('User to remove'),
+  })
+  .meta({ id: 'FileVolumeMemberRemoveDto' });
+
 const FileEntryTypeSchema = z.enum(FileEntryType).describe('File entry type').meta({ id: 'FileEntryType' });
 
 /** One entry inside a volume. Paths are virtual and relative to the volume root. */
@@ -256,3 +297,7 @@ export class FileTrashPurgeResponseDto extends createZodDto(TrashPurgeResultSche
 export class FileVolumeHealthResponseDto extends createZodDto(VolumeHealthSchema) {}
 export class FileReconcileDto extends createZodDto(ReconcileSchema) {}
 export class FileReconcileResponseDto extends createZodDto(ReconcileResultSchema) {}
+export class FileVolumeMemberResponseDto extends createZodDto(VolumeMemberSchema) {}
+export class FileVolumeMemberListDto extends createZodDto(VolumeMemberListSchema) {}
+export class FileVolumeMemberAddDto extends createZodDto(VolumeMemberAddSchema) {}
+export class FileVolumeMemberRemoveDto extends createZodDto(VolumeMemberRemoveSchema) {}

@@ -30,6 +30,7 @@ import {
 // file. Drive migrations carry a fixed high timestamp prefix so they always sort after upstream's —
 // see docs/adr/0011-drive-index-schema.md.
 import { DriveEntryTable } from 'src/extensions/files/schema/drive-entry.table';
+import { DriveVolumeMemberTable } from 'src/extensions/files/schema/drive-volume-member.table';
 import { DriveVolumeTable } from 'src/extensions/files/schema/drive-volume.table';
 import { ActivityTable } from 'src/schema/tables/activity.table';
 import { AlbumAssetAuditTable } from 'src/schema/tables/album-asset-audit.table';
@@ -122,6 +123,7 @@ export class ImmichDatabase {
     AssetExifTable,
     DriveVolumeTable,
     DriveEntryTable,
+    DriveVolumeMemberTable,
     FaceSearchTable,
     GeodataPlacesTable,
     IntegrityReportTable,
@@ -209,6 +211,7 @@ export interface DB {
 
   drive_volume: DriveVolumeTable;
   drive_entry: DriveEntryTable;
+  drive_volume_member: DriveVolumeMemberTable;
 
   asset: AssetTable;
   asset_audit: AssetAuditTable;

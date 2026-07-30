@@ -1332,6 +1332,22 @@ export type FileVolumeHealthResponseDto = {
     /** Volume the report is about */
     volumeId: string;
 };
+export type FileVolumeMemberResponseDto = {
+    access: FileVolumeMemberAccess;
+    /** Email of the member */
+    email: string;
+    /** Display name of the member */
+    name: string;
+    /** User the membership belongs to */
+    userId: string;
+};
+export type FileVolumeMemberAddDto = {
+    access?: FileVolumeMemberAccess;
+    /** User to add */
+    userId: string;
+    /** Shared volume to add the member to */
+    volumeId: string;
+};
 export type QueueStatisticsDto = {
     /** Number of active jobs */
     active: number;
@@ -5138,6 +5154,51 @@ export function getFileVolumeHealth(opts?: Oazapfts.RequestOpts) {
     }));
 }
 /**
+ * Remove a member from a shared volume
+ */
+export function removeFileVolumeMember({ userId, volumeId }: {
+    userId: string;
+    volumeId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/files/volumes/members${QS.query(QS.explode({
+        userId,
+        volumeId
+    }))}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * List the members of a shared volume
+ */
+export function getFileVolumeMembers({ volumeId }: {
+    volumeId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileVolumeMemberResponseDto[];
+    }>(`/files/volumes/members${QS.query(QS.explode({
+        volumeId
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Add a member to a shared volume, or change their access
+ */
+export function addFileVolumeMember({ fileVolumeMemberAddDto }: {
+    fileVolumeMemberAddDto: FileVolumeMemberAddDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: FileVolumeMemberResponseDto;
+    }>("/files/volumes/members", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fileVolumeMemberAddDto
+    })));
+}
+/**
  * Retrieve queue counts and status
  */
 export function getQueuesLegacy(opts?: Oazapfts.RequestOpts) {
@@ -7735,6 +7796,10 @@ export enum FileVolumeAccess {
 export enum FileVolumeKind {
     Private = "private",
     Shared = "shared"
+}
+export enum FileVolumeMemberAccess {
+    ReadOnly = "read-only",
+    ReadWrite = "read-write"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
