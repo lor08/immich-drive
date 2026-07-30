@@ -46,6 +46,15 @@ export const DRIVE_TRASH_RETENTION_VARIABLE = 'IMMICH_DRIVE_TRASH_RETENTION_DAYS
  */
 export const DRIVE_RECONCILE_CRON_VARIABLE = 'IMMICH_DRIVE_RECONCILE_CRON';
 
+/**
+ * How many megabytes one reconciliation pass may read purely to give existing files a digest.
+ *
+ * Unset means none, and that is the default: every existing file already works without a checksum, and
+ * reading a whole volume is not something a deployment should inherit by upgrading. A pass spends the
+ * budget and stops, so progress accumulates across passes.
+ */
+export const DRIVE_CHECKSUM_BUDGET_VARIABLE = 'IMMICH_DRIVE_CHECKSUM_BUDGET_MB';
+
 export type DriveConfig =
   | { enabled: false }
   | {
@@ -54,6 +63,7 @@ export type DriveConfig =
       sharedSpace?: string;
       trashRetentionDays?: number;
       reconcileCron?: string;
+      checksumBudgetBytes?: number;
     };
 
 /**
@@ -105,6 +115,21 @@ const readReconcileCron = (raw: string | undefined): string | undefined => {
   return expression;
 };
 
+/** Reads the budget in megabytes, refusing anything that is not a positive whole number of them. */
+const readChecksumBudget = (raw: string | undefined): number | undefined => {
+  const value = raw?.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  const megabytes = Number(value);
+  if (!Number.isSafeInteger(megabytes) || megabytes <= 0) {
+    throw new Error(`${DRIVE_CHECKSUM_BUDGET_VARIABLE} must be a positive whole number of megabytes, got "${value}"`);
+  }
+
+  return megabytes * 1024 * 1024;
+};
+
 export const readDriveConfig = (env: Record<string, string | undefined>): DriveConfig => {
   const root = env[DRIVE_ROOT_VARIABLE]?.trim();
 
@@ -115,6 +140,7 @@ export const readDriveConfig = (env: Record<string, string | undefined>): DriveC
   const sharedSpace = env[DRIVE_SHARED_SPACE_VARIABLE]?.trim();
   const trashRetentionDays = readRetentionDays(env[DRIVE_TRASH_RETENTION_VARIABLE]);
   const reconcileCron = readReconcileCron(env[DRIVE_RECONCILE_CRON_VARIABLE]);
+  const checksumBudgetBytes = readChecksumBudget(env[DRIVE_CHECKSUM_BUDGET_VARIABLE]);
 
   return {
     enabled: true,
@@ -122,5 +148,6 @@ export const readDriveConfig = (env: Record<string, string | undefined>): DriveC
     ...(sharedSpace && { sharedSpace: assertSpaceName(sharedSpace) }),
     ...(trashRetentionDays !== undefined && { trashRetentionDays }),
     ...(reconcileCron !== undefined && { reconcileCron }),
+    ...(checksumBudgetBytes !== undefined && { checksumBudgetBytes }),
   };
 };

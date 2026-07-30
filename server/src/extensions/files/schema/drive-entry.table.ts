@@ -55,6 +55,25 @@ export class DriveEntryTable {
   @Column({ type: 'timestamp with time zone' })
   modifiedAt!: Timestamp;
 
+  /**
+   * Hex digest of the content, when the server has one.
+   *
+   * Null for anything it never wrote and never had reason to read: giving every existing file a digest
+   * means reading every byte of it, which is deliberately opt-in. A row without one behaves exactly as it
+   * did before checksums existed.
+   */
+  @Column({ nullable: true })
+  checksum!: string | null;
+
+  /**
+   * Which algorithm produced `checksum`.
+   *
+   * Stored beside the digest rather than assumed, so replacing the algorithm later is a distinguishable
+   * change instead of a silent reinterpretation of existing rows.
+   */
+  @Column({ nullable: true })
+  checksumAlgorithm!: string | null;
+
   @Column({ default: DriveEntryState.Present })
   state!: Generated<DriveEntryState>;
 

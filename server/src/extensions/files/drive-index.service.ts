@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import path from 'node:path/posix';
 import { DriveEntryRecord, DriveIndexRepository } from 'src/extensions/files/drive-index.repository';
-import { FileEntry } from 'src/extensions/files/file-entry';
+import { FileEntry, WrittenEntry } from 'src/extensions/files/file-entry';
 import { Volume, VolumeKind, volumeKey } from 'src/extensions/files/volume';
 import { ensureVolumeIdentity } from 'src/extensions/files/volume-identity';
 import { LoggingRepository } from 'src/repositories/logging.repository';
@@ -72,7 +72,7 @@ export class DriveIndexService {
   }
 
   /** Records an entry that was created, written, copied, or restored. */
-  async recordEntry(ownerId: string, volume: Volume, entry: FileEntry): Promise<void> {
+  async recordEntry(ownerId: string, volume: Volume, entry: FileEntry | WrittenEntry): Promise<void> {
     await this.maintain(ownerId, volume, `write of ${entry.path}`, (volumeRowId) =>
       this.repository.upsertEntry(toRecord(volumeRowId, entry)),
     );
@@ -172,7 +172,7 @@ export class DriveIndexService {
  * `parentPath` is derived here and stored rather than computed at read time, so listing a folder is one
  * index lookup instead of a pattern match over every descendant. A top-level entry gets `/`.
  */
-const toRecord = (volumeId: string, entry: FileEntry): DriveEntryRecord => ({
+const toRecord = (volumeId: string, entry: FileEntry | WrittenEntry): DriveEntryRecord => ({
   volumeId,
   path: entry.path,
   parentPath: path.dirname(entry.path),
@@ -180,4 +180,7 @@ const toRecord = (volumeId: string, entry: FileEntry): DriveEntryRecord => ({
   type: entry.type,
   size: entry.size,
   modifiedAt: entry.modifiedAt,
+  // Only a write knows the digest. A discovery leaves both null rather than guessing, and the upsert keeps
+  // whatever was already recorded.
+  ...('checksum' in entry && { checksum: entry.checksum, checksumAlgorithm: entry.checksumAlgorithm }),
 });

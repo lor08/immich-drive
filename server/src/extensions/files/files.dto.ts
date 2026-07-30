@@ -95,6 +95,8 @@ const ReconcileResultSchema = z
       .int()
       .describe('Index rows this pass newly marked missing because their file is gone; nothing is removed'),
     recovered: z.number().int().describe('Rows this pass returned to present because the filesystem agreed again'),
+    verified: z.number().int().describe('Entries whose content was read to settle a modification-time disagreement'),
+    hashed: z.number().int().describe('Entries given a checksum they did not have, within the configured budget'),
     resumedFrom: z.string().nullable().describe('Checkpoint this pass resumed from'),
     stoppedAt: z.string().nullable().describe('Checkpoint saved for the next pass'),
     trash: TrashReportSchema.nullable().describe('Trash findings, present only when the pass completed'),

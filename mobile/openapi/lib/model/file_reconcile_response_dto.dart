@@ -17,6 +17,7 @@ class FileReconcileResponseDto {
     required this.completed,
     required this.conflicted,
     required this.directories,
+    required this.hashed,
     required this.missing,
     required this.reason,
     required this.recovered,
@@ -24,6 +25,7 @@ class FileReconcileResponseDto {
     required this.state,
     required this.stoppedAt,
     required this.trash,
+    required this.verified,
     required this.volumeId,
   });
 
@@ -47,6 +49,12 @@ class FileReconcileResponseDto {
   /// Minimum value: -9007199254740991
   /// Maximum value: 9007199254740991
   int directories;
+
+  /// Entries given a checksum they did not have, within the configured budget
+  ///
+  /// Minimum value: -9007199254740991
+  /// Maximum value: 9007199254740991
+  int hashed;
 
   /// Index rows this pass newly marked missing because their file is gone; nothing is removed
   ///
@@ -74,6 +82,12 @@ class FileReconcileResponseDto {
   /// Trash findings, present only when the pass completed
   FileTrashReportDto? trash;
 
+  /// Entries whose content was read to settle a modification-time disagreement
+  ///
+  /// Minimum value: -9007199254740991
+  /// Maximum value: 9007199254740991
+  int verified;
+
   /// Volume the pass ran on
   String volumeId;
 
@@ -83,6 +97,7 @@ class FileReconcileResponseDto {
     other.completed == completed &&
     other.conflicted == conflicted &&
     other.directories == directories &&
+    other.hashed == hashed &&
     other.missing == missing &&
     other.reason == reason &&
     other.recovered == recovered &&
@@ -90,6 +105,7 @@ class FileReconcileResponseDto {
     other.state == state &&
     other.stoppedAt == stoppedAt &&
     other.trash == trash &&
+    other.verified == verified &&
     other.volumeId == volumeId;
 
   @override
@@ -99,6 +115,7 @@ class FileReconcileResponseDto {
     (completed.hashCode) +
     (conflicted.hashCode) +
     (directories.hashCode) +
+    (hashed.hashCode) +
     (missing.hashCode) +
     (reason == null ? 0 : reason!.hashCode) +
     (recovered.hashCode) +
@@ -106,10 +123,11 @@ class FileReconcileResponseDto {
     (state.hashCode) +
     (stoppedAt == null ? 0 : stoppedAt!.hashCode) +
     (trash == null ? 0 : trash!.hashCode) +
+    (verified.hashCode) +
     (volumeId.hashCode);
 
   @override
-  String toString() => 'FileReconcileResponseDto[added=$added, completed=$completed, conflicted=$conflicted, directories=$directories, missing=$missing, reason=$reason, recovered=$recovered, resumedFrom=$resumedFrom, state=$state, stoppedAt=$stoppedAt, trash=$trash, volumeId=$volumeId]';
+  String toString() => 'FileReconcileResponseDto[added=$added, completed=$completed, conflicted=$conflicted, directories=$directories, hashed=$hashed, missing=$missing, reason=$reason, recovered=$recovered, resumedFrom=$resumedFrom, state=$state, stoppedAt=$stoppedAt, trash=$trash, verified=$verified, volumeId=$volumeId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -117,6 +135,7 @@ class FileReconcileResponseDto {
       json[r'completed'] = this.completed;
       json[r'conflicted'] = this.conflicted;
       json[r'directories'] = this.directories;
+      json[r'hashed'] = this.hashed;
       json[r'missing'] = this.missing;
     if (this.reason != null) {
       json[r'reason'] = this.reason;
@@ -140,6 +159,7 @@ class FileReconcileResponseDto {
     } else {
       json[r'trash'] = null;
     }
+      json[r'verified'] = this.verified;
       json[r'volumeId'] = this.volumeId;
     return json;
   }
@@ -157,6 +177,7 @@ class FileReconcileResponseDto {
         completed: mapValueOfType<bool>(json, r'completed')!,
         conflicted: mapValueOfType<int>(json, r'conflicted')!,
         directories: mapValueOfType<int>(json, r'directories')!,
+        hashed: mapValueOfType<int>(json, r'hashed')!,
         missing: mapValueOfType<int>(json, r'missing')!,
         reason: FileVolumeHealthReason.fromJson(json[r'reason']),
         recovered: mapValueOfType<int>(json, r'recovered')!,
@@ -164,6 +185,7 @@ class FileReconcileResponseDto {
         state: FileVolumeState.fromJson(json[r'state'])!,
         stoppedAt: mapValueOfType<String>(json, r'stoppedAt'),
         trash: FileTrashReportDto.fromJson(json[r'trash']),
+        verified: mapValueOfType<int>(json, r'verified')!,
         volumeId: mapValueOfType<String>(json, r'volumeId')!,
       );
     }
@@ -216,6 +238,7 @@ class FileReconcileResponseDto {
     'completed',
     'conflicted',
     'directories',
+    'hashed',
     'missing',
     'reason',
     'recovered',
@@ -223,6 +246,7 @@ class FileReconcileResponseDto {
     'state',
     'stoppedAt',
     'trash',
+    'verified',
     'volumeId',
   };
 }

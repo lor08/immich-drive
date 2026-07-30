@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import path from 'node:path/posix';
 import { DriveEntryRow, DriveIndexRepository, DriveVolumeRow } from 'src/extensions/files/drive-index.repository';
 import { DriveIndexService } from 'src/extensions/files/drive-index.service';
-import { FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
+import { CHECKSUM_ALGORITHM, FileEntry, FileEntryType, TrashRecord } from 'src/extensions/files/file-entry';
 import { DRIVE_CONFIG, DriveConfig } from 'src/extensions/files/files.config';
 import { DriveEntryState, DriveVolumeState } from 'src/extensions/files/index-state';
 import { StorageAdapter } from 'src/extensions/files/storage.adapter';
@@ -32,6 +32,9 @@ interface PassState {
   conflicted: number;
   missing: number;
   recovered: number;
+  verified: number;
+  hashed: number;
+  hashedBytes: number;
   lastCompleted: string | null;
   stoppedAt: string | null;
 }
@@ -128,6 +131,9 @@ export class ReconciliationService {
       conflicted: 0,
       missing: 0,
       recovered: 0,
+      verified: 0,
+      hashed: 0,
+      hashedBytes: 0,
       lastCompleted: null,
       stoppedAt: null,
     };
@@ -158,6 +164,8 @@ export class ReconciliationService {
       conflicted: state.conflicted,
       missing: state.missing,
       recovered: state.recovered,
+      verified: state.verified,
+      hashed: state.hashed,
       resumedFrom: health.resumeFrom,
       stoppedAt: state.stoppedAt,
       trash,
@@ -192,6 +200,8 @@ export class ReconciliationService {
       conflicted: 0,
       missing: 0,
       recovered: 0,
+      verified: 0,
+      hashed: 0,
       resumedFrom: health.resumeFrom,
       stoppedAt: health.resumeFrom,
       trash: null,
@@ -356,7 +366,22 @@ export class ReconciliationService {
         continue;
       }
 
-      if (agrees(row, entry)) {
+      const comparison = compare(row, entry);
+
+      if (comparison === Comparison.Unverified) {
+        // The one place a pass reads a file it was not asked to: the timestamp moved and the size did not,
+        // so the bytes are the only thing that can say whether anyone actually changed anything.
+        const verified = await this.verify(state, row, entry);
+        if (verified) {
+          continue;
+        }
+      }
+
+      if (comparison === Comparison.Same) {
+        if (row.checksum === null) {
+          await this.backfill(state, row, entry);
+        }
+
         if (row.state !== DriveEntryState.Present) {
           await this.repository.setEntryState(state.volumeRowId, row.path, DriveEntryState.Present);
           state.recovered++;
@@ -383,6 +408,71 @@ export class ReconciliationService {
       }
 
       state.missing += await this.repository.markSubtreeMissing(state.volumeRowId, row.path);
+    }
+  }
+
+  /**
+   * Reads a file to settle a modification-time disagreement.
+   *
+   * Answers whether the row was kept. Equal digests mean the same bytes with a new timestamp, so the row
+   * takes the new time and stays `present` — the alternative, conflicting it, is what left people who edit
+   * their files over SSH with rows that never recovered. Different digests fall through to `conflicted`,
+   * now on evidence rather than on the assumption that any difference is an edit.
+   *
+   * A read that fails settles nothing, so the entry is treated as changed rather than as verified: a file
+   * that cannot be read is not a file that agrees.
+   */
+  private async verify(state: PassState, row: DriveEntryRow, entry: FileEntry): Promise<boolean> {
+    let digest: string;
+    try {
+      digest = await state.adapter.digest(entry.path);
+    } catch (error) {
+      this.logger.warn(`Could not verify ${entry.path}: ${describeError(error)}`);
+      return false;
+    }
+
+    state.verified++;
+    state.hashedBytes += entry.size;
+
+    if (digest !== row.checksum) {
+      return false;
+    }
+
+    await this.repository.setEntryChecksum(state.volumeRowId, row.path, {
+      checksum: digest,
+      checksumAlgorithm: row.checksumAlgorithm ?? CHECKSUM_ALGORITHM,
+      modifiedAt: entry.modifiedAt,
+      state: DriveEntryState.Present,
+    });
+    state.recovered++;
+
+    return true;
+  }
+
+  /**
+   * Gives an entry a digest it never had, if the deployment allowed the reading.
+   *
+   * Bounded by a byte budget rather than a file count, because what costs time here is bytes. The budget is
+   * spent optimistically — a file larger than what remains is still hashed once, rather than starving on a
+   * volume of large files — and the pass then stops backfilling.
+   */
+  private async backfill(state: PassState, row: DriveEntryRow, entry: FileEntry): Promise<void> {
+    const budget = this.config.enabled ? this.config.checksumBudgetBytes : undefined;
+    if (budget === undefined || state.hashedBytes >= budget || entry.type !== FileEntryType.File) {
+      return;
+    }
+
+    try {
+      const digest = await state.adapter.digest(entry.path);
+      await this.repository.setEntryChecksum(state.volumeRowId, row.path, {
+        checksum: digest,
+        checksumAlgorithm: CHECKSUM_ALGORITHM,
+      });
+      state.hashed++;
+      state.hashedBytes += entry.size;
+    } catch (error) {
+      // A file that cannot be read simply keeps no digest; the next pass will try again.
+      this.logger.warn(`Could not hash ${entry.path}: ${describeError(error)}`);
     }
   }
 
@@ -459,22 +549,46 @@ const normalizeLimit = (limit: number | undefined): number => {
 };
 
 /**
- * Whether a row still describes the entry on disk.
+ * What a row and the file on disk have to say about each other.
+ *
+ * `Unverified` is the case checksums exist for: only the modification time moved, which happens to files
+ * nobody edited — a `touch`, an `rsync` without `--checksum`, a restore, a metadata-preserving copy — and
+ * is indistinguishable from an edit until the bytes are read.
+ */
+enum Comparison {
+  Same = 'same',
+  Changed = 'changed',
+  Unverified = 'unverified',
+}
+
+/**
+ * Compares a row with the entry on disk, without reading it.
  *
  * A folder is compared by kind alone. Its size and modification time change whenever anything inside it
  * changes, so comparing them would mark every folder on the path to a new file as conflicted — a report
  * about filesystem bookkeeping rather than about anyone's data.
+ *
+ * A size difference is `Changed` outright: different lengths cannot be the same content, so reading the
+ * file would cost a pass over every byte to confirm what is already known.
  */
-const agrees = (row: DriveEntryRow, entry: FileEntry): boolean => {
+const compare = (row: DriveEntryRow, entry: FileEntry): Comparison => {
   if (row.type !== entry.type) {
-    return false;
+    return Comparison.Changed;
   }
 
   if (entry.type === FileEntryType.Directory) {
-    return true;
+    return Comparison.Same;
   }
 
-  return row.size === entry.size && row.modifiedAt.getTime() === entry.modifiedAt.getTime();
+  if (row.size !== entry.size) {
+    return Comparison.Changed;
+  }
+
+  if (row.modifiedAt.getTime() === entry.modifiedAt.getTime()) {
+    return Comparison.Same;
+  }
+
+  return row.checksum === null ? Comparison.Changed : Comparison.Unverified;
 };
 
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error));

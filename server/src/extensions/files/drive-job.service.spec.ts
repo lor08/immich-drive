@@ -37,6 +37,8 @@ const report = (overrides: Partial<ReconcileReport> = {}): ReconcileReport => ({
   conflicted: 0,
   missing: 0,
   recovered: 0,
+  verified: 0,
+  hashed: 0,
   resumedFrom: null,
   stoppedAt: null,
   trash: null,
