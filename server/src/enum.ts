@@ -853,6 +853,10 @@ export enum JobName {
 
   DatabaseBackup = 'DatabaseBackup',
 
+  // Immich Drive. `Drive` rather than `File`, because `FileDelete` below is about asset files.
+  DriveReconcileQueueAll = 'DriveReconcileQueueAll',
+  DriveReconcileVolume = 'DriveReconcileVolume',
+
   FacialRecognitionQueueAll = 'FacialRecognitionQueueAll',
   FacialRecognition = 'FacialRecognition',
 
@@ -977,6 +981,8 @@ export enum DatabaseLock {
   IntegrityCheck = 67,
   VersionCheck = 800,
   HlsSessionCleanup = 850,
+  /** Immich Drive: whichever replica holds this one owns the reconciliation schedule. */
+  DriveReconciliation = 900,
 }
 
 export enum MaintenanceAction {

@@ -92,6 +92,8 @@ The managed root comes from `IMMICH_DRIVE_ROOT`. **The file domain is opt-in**: 
 
 `IMMICH_DRIVE_SHARED_SPACE` names one optional shared space every user can address; per-user membership needs the authorization model, so until then the space is either available to everyone or absent.
 
+`IMMICH_DRIVE_RECONCILE_CRON` schedules reconciliation passes. **Unset means nothing is scheduled**, which is the default: a pass reads every volume's tree, and a deployment that merely upgrades should not inherit that. `0 4 * * *` — once a night — is a reasonable starting point. A malformed expression fails startup rather than being ignored, because a server that silently never reconciles looks exactly like one that was never configured. The schedule is registered in the microservices worker only, and only by the replica that wins the database lock for it.
+
 `IMMICH_DRIVE_TRASH_RETENTION_DAYS` is how long a trash record may sit before reconciliation removes it. **Unset means never**, which is the default: expiry is the only destructive thing reconciliation does, and [ADR 0007](../adr/0007-reconciliation-and-mount-health.md) requires destruction to be an explicit operator decision rather than something a deployment inherits. Expiry runs only on a healthy volume, only in a pass that reached the end of the tree, and never on a record whose manifest could not be read — such a record has no known age, and guessing would destroy the class of content a user is least able to recover another way. A malformed value fails startup rather than being read as "never", because those two are indistinguishable to an operator who meant to configure expiry.
 
 ## Database and filesystem consistency

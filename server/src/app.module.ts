@@ -151,13 +151,19 @@ export class MaintenanceModule {
 }
 
 @Module({
-  imports: [...bullImports, ...commonImports],
+  // `driveModule` is here as well as in the API: Drive reconciliation runs as a queued job, jobs run in
+  // this worker, and its handler needs the file domain's services.
+  imports: [...bullImports, ...commonImports, driveModule],
   providers: [...common, { provide: IWorker, useValue: ImmichWorker.Microservices }, SchedulerRegistry],
 })
 export class MicroservicesModule extends BaseModule {}
 
 @Module({
-  imports: [...bullImports, ...commonImports],
+  // `driveModule` again, for the third and last module that takes `common`: the admin CLI instantiates
+  // every service in that list, including the Drive job handler, so the file domain has to be resolvable
+  // here even though the CLI never reconciles anything. Without it the CLI exits 1 with no message,
+  // because its log level suppresses the dependency error.
+  imports: [...bullImports, ...commonImports, driveModule],
   providers: [...common, ...commandsAndQuestions, SchedulerRegistry],
 })
 export class ImmichAdminModule implements OnModuleDestroy {
