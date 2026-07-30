@@ -20498,6 +20498,8 @@
           "AssetGenerateThumbnails",
           "AuditTableCleanup",
           "DatabaseBackup",
+          "DriveReconcileQueueAll",
+          "DriveReconcileVolume",
           "FacialRecognitionQueueAll",
           "FacialRecognition",
           "FileDelete",

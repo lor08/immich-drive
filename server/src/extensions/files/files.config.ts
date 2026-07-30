@@ -1,3 +1,4 @@
+import { CronTime } from 'cron';
 import { assertSpaceName } from 'src/extensions/files/volume';
 
 /**
@@ -34,8 +35,26 @@ export const DRIVE_SHARED_SPACE_VARIABLE = 'IMMICH_DRIVE_SHARED_SPACE';
  */
 export const DRIVE_TRASH_RETENTION_VARIABLE = 'IMMICH_DRIVE_TRASH_RETENTION_DAYS';
 
+/**
+ * Cron expression for scheduled reconciliation passes.
+ *
+ * Unset means nothing is scheduled, and that is the default. Reconciliation reads every volume's tree,
+ * so switching it on for every deployment that merely upgrades would be exactly the kind of surprise a
+ * fork must not spring; `P1-06` behaviour stays identical until an operator asks for a schedule.
+ *
+ * A useful starting point is `0 4 * * *` — once a night, outside the hours anyone is uploading.
+ */
+export const DRIVE_RECONCILE_CRON_VARIABLE = 'IMMICH_DRIVE_RECONCILE_CRON';
+
 export type DriveConfig =
-  { enabled: false } | { enabled: true; root: string; sharedSpace?: string; trashRetentionDays?: number };
+  | { enabled: false }
+  | {
+      enabled: true;
+      root: string;
+      sharedSpace?: string;
+      trashRetentionDays?: number;
+      reconcileCron?: string;
+    };
 
 /**
  * Reads the retention window, refusing anything that is not a positive whole number of days.
@@ -58,6 +77,34 @@ const readRetentionDays = (raw: string | undefined): number | undefined => {
   return days;
 };
 
+/**
+ * Reads the schedule, refusing an expression the scheduler could not use.
+ *
+ * Validated here, while the module is being constructed, so a typo fails startup with the operator
+ * looking at it. The alternative is a server that starts, reports nothing, and simply never reconciles —
+ * indistinguishable from a deployment that never configured a schedule at all.
+ */
+const readReconcileCron = (raw: string | undefined): string | undefined => {
+  const expression = raw?.trim();
+  if (!expression) {
+    return undefined;
+  }
+
+  try {
+    // The scheduler's own parser, so what is accepted here is exactly what it will accept later.
+    new CronTime(expression);
+  } catch (error) {
+    throw new Error(
+      `${DRIVE_RECONCILE_CRON_VARIABLE} is not a usable cron expression ("${expression}"): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
+    );
+  }
+
+  return expression;
+};
+
 export const readDriveConfig = (env: Record<string, string | undefined>): DriveConfig => {
   const root = env[DRIVE_ROOT_VARIABLE]?.trim();
 
@@ -67,11 +114,13 @@ export const readDriveConfig = (env: Record<string, string | undefined>): DriveC
 
   const sharedSpace = env[DRIVE_SHARED_SPACE_VARIABLE]?.trim();
   const trashRetentionDays = readRetentionDays(env[DRIVE_TRASH_RETENTION_VARIABLE]);
+  const reconcileCron = readReconcileCron(env[DRIVE_RECONCILE_CRON_VARIABLE]);
 
   return {
     enabled: true,
     root,
     ...(sharedSpace && { sharedSpace: assertSpaceName(sharedSpace) }),
     ...(trashRetentionDays !== undefined && { trashRetentionDays }),
+    ...(reconcileCron !== undefined && { reconcileCron }),
   };
 };

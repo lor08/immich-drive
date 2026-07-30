@@ -151,7 +151,9 @@ export class MaintenanceModule {
 }
 
 @Module({
-  imports: [...bullImports, ...commonImports],
+  // `driveModule` is here as well as in the API: Drive reconciliation runs as a queued job, jobs run in
+  // this worker, and its handler needs the file domain's services.
+  imports: [...bullImports, ...commonImports, driveModule],
   providers: [...common, { provide: IWorker, useValue: ImmichWorker.Microservices }, SchedulerRegistry],
 })
 export class MicroservicesModule extends BaseModule {}
