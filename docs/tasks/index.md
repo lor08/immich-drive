@@ -50,6 +50,7 @@ This file is the canonical registry for promoted Immich Drive work. The complete
 | `0025-trash-restore-purge.md`       | `P1-12`         | Trash, restore and permanent deletion  | Done       | #54   | #55          | Trash root beside the address root; retention needs the job-queue seam and stays out.              |
 | `0026-drive-index-schema.md`        | `P1-04`         | Drive index schema                     | Done       | #56   | #58          | First Drive-owned tables; migrations carry a fixed `9000000000000` prefix so they sort last.       |
 | `0027-reconciliation-and-health.md` | `P1-06`         | Reconciliation and volume health       | Done       | #57   | #60          | Health gates every conclusion; the trash is reported rather than indexed, and retention is opt-in. |
+| `0028-scheduled-reconciliation.md`  | `P1-20`         | Scheduled reconciliation               | Active     | #62   | #63          | Takes the job-queue seam; the schedule comes from the environment and is off by default.           |
 | `0013-fork-runnable-ci.md`          | `P0-14`         | Runnable inherited validation          | Done       | #30   | #31          | Degrades three upstream-only jobs; unblocks every fork pull request from queueing forever.         |
 
 ## Promotable work with accepted decisions and no Issue yet
