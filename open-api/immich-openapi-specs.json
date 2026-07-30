@@ -6690,6 +6690,58 @@
         "x-immich-permission": "file.update"
       }
     },
+    "/files/reconcile": {
+      "post": {
+        "description": "Runs or resumes a reconciliation pass. Entries found on disk are added to the index, rows whose file is gone are marked missing, and rows that disagree with the file are marked conflicted — nothing in the tree is modified and no row is deleted. An unhealthy volume is reported and reconciled no further, because an empty tree cannot be told apart from a vanished mount. Bounded by `limit` directories per pass, resuming from the saved checkpoint.",
+        "operationId": "reconcileFileVolume",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileReconcileDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileReconcileResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Reconcile a volume against the filesystem",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-admin-only": true,
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.maintenance"
+      }
+    },
     "/files/trash": {
       "delete": {
         "description": "Permanently removes one record and its content. This is the only operation that destroys data.",
@@ -6929,6 +6981,50 @@
           }
         ],
         "summary": "List file volumes",
+        "tags": [
+          "Files"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          }
+        ],
+        "x-immich-permission": "file.read"
+      }
+    },
+    "/files/volumes/health": {
+      "get": {
+        "description": "Reports what the server can currently prove about each of the caller's volumes: whether its filesystem identity and marker still match what the index recorded, how much the index holds, and where an interrupted reconciliation pass would resume. Reads only — it never creates or repairs anything it inspects.",
+        "operationId": "getFileVolumeHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FileVolumeHealthResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Report volume health",
         "tags": [
           "Files"
         ],
@@ -19895,6 +19991,113 @@
         ],
         "type": "object"
       },
+      "FileReconcileDto": {
+        "properties": {
+          "limit": {
+            "description": "Maximum directories to reconcile before saving a checkpoint and returning",
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "volumeId": {
+            "description": "Volume to reconcile",
+            "type": "string"
+          }
+        },
+        "required": [
+          "volumeId"
+        ],
+        "type": "object"
+      },
+      "FileReconcileResponseDto": {
+        "properties": {
+          "added": {
+            "description": "Entries this pass discovered on disk and added to the index",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "completed": {
+            "description": "Whether the pass reached the end of the tree",
+            "type": "boolean"
+          },
+          "conflicted": {
+            "description": "Entries this pass newly found disagreeing with the index; the rows are left untouched",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "directories": {
+            "description": "Directories reconciled by this pass",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "missing": {
+            "description": "Index rows this pass newly marked missing because their file is gone; nothing is removed",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FileVolumeHealthReason"
+              }
+            ],
+            "description": "Reason the pass refused to draw conclusions",
+            "nullable": true
+          },
+          "recovered": {
+            "description": "Rows this pass returned to present because the filesystem agreed again",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "resumedFrom": {
+            "description": "Checkpoint this pass resumed from",
+            "nullable": true,
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/FileVolumeState"
+          },
+          "stoppedAt": {
+            "description": "Checkpoint saved for the next pass",
+            "nullable": true,
+            "type": "string"
+          },
+          "trash": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FileTrashReportDto"
+              }
+            ],
+            "description": "Trash findings, present only when the pass completed",
+            "nullable": true
+          },
+          "volumeId": {
+            "description": "Volume the pass ran on",
+            "type": "string"
+          }
+        },
+        "required": [
+          "added",
+          "completed",
+          "conflicted",
+          "directories",
+          "missing",
+          "reason",
+          "recovered",
+          "resumedFrom",
+          "state",
+          "stoppedAt",
+          "trash",
+          "volumeId"
+        ],
+        "type": "object"
+      },
       "FileTrashEmptyDto": {
         "properties": {
           "volumeId": {
@@ -19971,6 +20174,48 @@
         ],
         "type": "object"
       },
+      "FileTrashReportDto": {
+        "properties": {
+          "damaged": {
+            "description": "Records whose manifest could not be read",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "expired": {
+            "description": "Records removed because they exceeded the configured retention",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "foreign": {
+            "description": "Entries in the trash that are not records and are left alone",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "orphanedManifests": {
+            "description": "Manifests whose content is missing",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "records": {
+            "description": "Records the trash holds",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "damaged",
+          "expired",
+          "foreign",
+          "orphanedManifests",
+          "records"
+        ],
+        "type": "object"
+      },
       "FileTrashRestoreDto": {
         "properties": {
           "targetPath": {
@@ -19999,6 +20244,66 @@
           "read-write"
         ],
         "type": "string"
+      },
+      "FileVolumeHealthReason": {
+        "description": "Why a volume is not usable as a basis for conclusions",
+        "enum": [
+          "not-indexed",
+          "root-unreadable",
+          "identity-changed",
+          "marker-missing",
+          "marker-mismatch",
+          "root-empty-while-indexed"
+        ],
+        "type": "string"
+      },
+      "FileVolumeHealthResponseDto": {
+        "properties": {
+          "indexedEntries": {
+            "description": "Entries the index currently holds for this volume",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FileVolumeHealthReason"
+              }
+            ],
+            "description": "Reason the volume is unhealthy or unverified",
+            "nullable": true
+          },
+          "resumeFrom": {
+            "description": "Virtual path an interrupted pass will resume from",
+            "nullable": true,
+            "type": "string"
+          },
+          "scannedAt": {
+            "description": "When a pass last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/FileVolumeState"
+          },
+          "volumeId": {
+            "description": "Volume the report is about",
+            "type": "string"
+          }
+        },
+        "required": [
+          "indexedEntries",
+          "reason",
+          "resumeFrom",
+          "scannedAt",
+          "state",
+          "volumeId"
+        ],
+        "type": "object"
       },
       "FileVolumeKind": {
         "description": "Volume kind",
@@ -20032,6 +20337,15 @@
           "name"
         ],
         "type": "object"
+      },
+      "FileVolumeState": {
+        "description": "Volume index state",
+        "enum": [
+          "unverified",
+          "healthy",
+          "unhealthy"
+        ],
+        "type": "string"
       },
       "FoldersResponse": {
         "properties": {
@@ -21846,6 +22160,7 @@
           "file.upload",
           "file.update",
           "file.delete",
+          "file.maintenance",
           "folder.read",
           "job.create",
           "job.read",

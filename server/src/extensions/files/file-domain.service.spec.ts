@@ -8,6 +8,7 @@ import { FileDomainService } from 'src/extensions/files/file-domain.service';
 import { FileEntry } from 'src/extensions/files/file-entry';
 import { FilesController } from 'src/extensions/files/files.controller';
 import { PathLock } from 'src/extensions/files/path-lock';
+import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
 import { PRIVATE_VOLUME_ID, VolumeAccess, VolumeKind } from 'src/extensions/files/volume';
 import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 
@@ -63,6 +64,12 @@ const recordingIndex = (calls: IndexCall[] = []) =>
   }) as unknown as DriveIndexService;
 
 const bytes = (content: string) => Readable.from([Buffer.from(content)]);
+
+/** These cases are about what the controller returns, and none of them reconciles anything. */
+const noReconciliation = {
+  inspectVolumes: () => Promise.resolve([]),
+  reconcileVolume: () => Promise.reject(new Error('not part of this test')),
+} as unknown as ReconciliationService;
 
 const OWNER = '5f2b9c4e-0000-4000-8000-000000000001';
 const OTHER_OWNER = '5f2b9c4e-0000-4000-8000-000000000002';
@@ -330,7 +337,7 @@ describe(FilesController.name, () => {
       ]),
     } as unknown as FileDomainService;
 
-    const response = await new FilesController(service).getFileVolumes(asAuth(OWNER));
+    const response = await new FilesController(service, noReconciliation).getFileVolumes(asAuth(OWNER));
 
     expect(response).toEqual([
       { id: PRIVATE_VOLUME_ID, name: 'My files', kind: VolumeKind.Private, access: VolumeAccess.ReadWrite },
@@ -345,7 +352,7 @@ describe(FilesController.name, () => {
     await fs.mkdir(path.join(volume.filesPath, 'documents'));
     await fs.writeFile(path.join(volume.filesPath, 'documents', 'report.txt'), 'contents');
 
-    const response = await new FilesController(service).getFileEntries(asAuth(OWNER), {
+    const response = await new FilesController(service, noReconciliation).getFileEntries(asAuth(OWNER), {
       volumeId: PRIVATE_VOLUME_ID,
       path: '/documents',
     });
@@ -359,7 +366,7 @@ describe(FilesController.name, () => {
   it('scopes the listing to the authenticated user', async () => {
     const service = { listVolumes: vi.fn().mockResolvedValue([]) } as unknown as FileDomainService;
 
-    await new FilesController(service).getFileVolumes(asAuth(OWNER));
+    await new FilesController(service, noReconciliation).getFileVolumes(asAuth(OWNER));
 
     expect(service.listVolumes).toHaveBeenCalledWith(OWNER);
   });

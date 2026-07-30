@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely, sql, Transaction } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { FileEntryType } from 'src/extensions/files/file-entry';
-import { DriveEntryState } from 'src/extensions/files/index-state';
+import { DriveEntryState, DriveVolumeState } from 'src/extensions/files/index-state';
 import { DB } from 'src/schema';
 
 /** Either the pool or an open transaction, so one statement can be written once and reused in both. */
@@ -27,6 +27,25 @@ export interface DriveEntryRecord {
   readonly type: FileEntryType;
   readonly size: number;
   readonly modifiedAt: Date;
+}
+
+export interface DriveVolumeRow {
+  readonly id: string;
+  readonly device: string | null;
+  readonly inode: string | null;
+  readonly markerId: string | null;
+  readonly state: DriveVolumeState;
+  readonly checkpoint: string | null;
+  readonly scannedAt: Date | null;
+}
+
+export interface DriveEntryRow {
+  readonly path: string;
+  readonly name: string;
+  readonly type: FileEntryType;
+  readonly size: number;
+  readonly modifiedAt: Date;
+  readonly state: DriveEntryState;
 }
 
 export interface DriveMoveRecord {
@@ -74,9 +93,95 @@ export class DriveIndexRepository {
     return id;
   }
 
+  /** The volume row, or `undefined` when no mutation has ever touched this volume. */
+  async getVolume(key: string): Promise<DriveVolumeRow | undefined> {
+    return this.db
+      .selectFrom('drive_volume')
+      .select(['id', 'device', 'inode', 'markerId', 'state', 'checkpoint', 'scannedAt'])
+      .where('key', '=', key)
+      .executeTakeFirst();
+  }
+
+  async countEntries(volumeId: string): Promise<number> {
+    const { count } = await this.db
+      .selectFrom('drive_entry')
+      .select((eb) => eb.fn.countAll<number>().as('count'))
+      .where('volumeId', '=', volumeId)
+      .executeTakeFirstOrThrow();
+
+    return count;
+  }
+
+  /** Every row the index holds directly under one folder. Ordered so a comparison is reproducible. */
+  async getChildren(volumeId: string, parentPath: string): Promise<DriveEntryRow[]> {
+    return this.db
+      .selectFrom('drive_entry')
+      .select(['path', 'name', 'type', 'size', 'modifiedAt', 'state'])
+      .where('volumeId', '=', volumeId)
+      .where('parentPath', '=', parentPath)
+      .orderBy('name')
+      .execute();
+  }
+
   /** Records one entry as present, whether or not the index already knew about it. */
   async upsertEntry(entry: DriveEntryRecord): Promise<void> {
     await this.upsertEntryWith(this.db, entry);
+  }
+
+  /** Moves one row to a state, leaving everything the filesystem disagrees about untouched. */
+  async setEntryState(volumeId: string, path: string, state: DriveEntryState): Promise<void> {
+    await this.db
+      .updateTable('drive_entry')
+      .set({ state, updatedAt: sql<Date>`now()` })
+      .where('volumeId', '=', volumeId)
+      .where('path', '=', path)
+      .execute();
+  }
+
+  /**
+   * Marks a row and everything under it as missing, and answers how many rows that was.
+   *
+   * A folder that is gone takes its descendants with it, and those descendants live in directories the
+   * scan will never visit — precisely because they no longer exist — so they have to be marked from the
+   * ancestor rather than found on their own. Nothing is deleted: `missing` is a statement, and only an
+   * explicit operator action turns it into a removal.
+   */
+  async markSubtreeMissing(volumeId: string, path: string): Promise<number> {
+    const result = await this.db
+      .updateTable('drive_entry')
+      .set({ state: DriveEntryState.Missing, updatedAt: sql<Date>`now()` })
+      .where('volumeId', '=', volumeId)
+      .where((eb) => eb.or([eb('path', '=', path), eb(sql<boolean>`starts_with("path", ${`${path}/`})`, '=', true)]))
+      .executeTakeFirst();
+
+    return Number(result.numUpdatedRows);
+  }
+
+  /** Where an interrupted pass stopped, so the next one resumes instead of restarting. */
+  async setCheckpoint(volumeId: string, checkpoint: string | null): Promise<void> {
+    await this.db
+      .updateTable('drive_volume')
+      .set({ checkpoint, updatedAt: sql<Date>`now()` })
+      .where('id', '=', volumeId)
+      .execute();
+  }
+
+  /**
+   * Records the conclusion of a pass.
+   *
+   * `scannedAt` moves only when a pass completed, so "last fully reconciled" cannot be confused with
+   * "last attempted" — an unhealthy volume that is retried hourly must not look freshly scanned.
+   */
+  async recordPass(volumeId: string, pass: { state: DriveVolumeState; completed: boolean }): Promise<void> {
+    await this.db
+      .updateTable('drive_volume')
+      .set({
+        state: pass.state,
+        ...(pass.completed && { scannedAt: sql<Date>`now()`, checkpoint: null }),
+        updatedAt: sql<Date>`now()`,
+      })
+      .where('id', '=', volumeId)
+      .execute();
   }
 
   /**

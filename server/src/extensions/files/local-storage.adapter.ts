@@ -8,6 +8,7 @@ import {
   StorageDeleteOptions,
   StorageRange,
   StorageWriteOptions,
+  TrashInspection,
   TrashPurgeResult,
 } from 'src/extensions/files/storage.adapter';
 
@@ -645,6 +646,64 @@ export class LocalStorageAdapter extends StorageAdapter {
         const rightTime = right.deletedAt?.getTime() ?? -1;
         return rightTime === leftTime ? compareNames(left.id, right.id) : rightTime - leftTime;
       });
+    } finally {
+      await trashHandle.close();
+    }
+  }
+
+  /**
+   * Reports the trash as it is, rather than as it should be.
+   *
+   * The three outcomes are deliberately separate. A record whose manifest is unreadable is still a
+   * record, and appears with a null origin. A manifest whose directory is missing is not a record at
+   * all — a delete interrupted between writing the manifest and creating the directory leaves one, and
+   * nothing else ever looks at it again. Anything else in the trash belongs to whoever put it there:
+   * it is named here so an operator can see it, and touched by nothing.
+   */
+  override async inspectTrash(): Promise<TrashInspection> {
+    const trashRoot = this.requireTrashRoot();
+    const trashHandle = await this.openServiceRoot(trashRoot);
+
+    try {
+      const names = await fs.readdir(this.descriptorPath(trashHandle));
+      const contentIds = new Set<string>();
+      const manifestIds = new Set<string>();
+      const foreign: string[] = [];
+
+      for (const name of names) {
+        if (TRASH_ID_PATTERN.test(name)) {
+          contentIds.add(name);
+          continue;
+        }
+
+        const withoutSuffix = name.endsWith('.json') ? name.slice(0, -'.json'.length) : null;
+        if (withoutSuffix !== null && TRASH_ID_PATTERN.test(withoutSuffix)) {
+          manifestIds.add(withoutSuffix);
+          continue;
+        }
+
+        foreign.push(name);
+      }
+
+      const records: TrashRecord[] = [];
+      for (const id of [...contentIds].sort(compareNames)) {
+        // An identifier-shaped name that is not a record — a plain file, or a directory holding more
+        // than one entry — is reported as foreign rather than skipped silently, because a purge can
+        // still remove it and an operator has no other way to learn it is there.
+        const record = await this.readTrashRecord(trashHandle, trashRoot, id).catch(() => null);
+        if (record === null) {
+          foreign.push(id);
+          continue;
+        }
+
+        records.push(record);
+      }
+
+      return {
+        records,
+        orphanedManifests: [...manifestIds].filter((id) => !contentIds.has(id)).sort(compareNames),
+        foreign: foreign.sort(compareNames),
+      };
     } finally {
       await trashHandle.close();
     }

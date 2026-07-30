@@ -174,6 +174,7 @@ export enum Permission {
   FileUpload = 'file.upload',
   FileUpdate = 'file.update',
   FileDelete = 'file.delete',
+  FileMaintenance = 'file.maintenance',
 
   FolderRead = 'folder.read',
 

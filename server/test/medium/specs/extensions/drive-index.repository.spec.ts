@@ -1,7 +1,7 @@
 import { Kysely } from 'kysely';
 import { DriveEntryRecord, DriveIndexRepository } from 'src/extensions/files/drive-index.repository';
 import { FileEntryType } from 'src/extensions/files/file-entry';
-import { DriveEntryState } from 'src/extensions/files/index-state';
+import { DriveEntryState, DriveVolumeState } from 'src/extensions/files/index-state';
 import { DB } from 'src/schema';
 import { getKyselyDB } from 'test/utils';
 
@@ -342,6 +342,131 @@ describe(DriveIndexRepository.name, () => {
         expect.objectContaining({ path: '/documents' }),
         expect.objectContaining({ path: '/documents/report.txt' }),
       ]);
+    });
+  });
+
+  describe('reconciliation support', () => {
+    it('returns the volume row a pass needs to judge health', async () => {
+      const ownerId = await newOwner();
+      const key = `${ownerId}:private`;
+      const volumeId = await newVolume(ownerId, key);
+
+      await expect(sut.getVolume(key)).resolves.toEqual({
+        id: volumeId,
+        device: '66',
+        inode: '1000',
+        markerId: 'marker-a',
+        state: DriveVolumeState.Unverified,
+        checkpoint: null,
+        scannedAt: null,
+      });
+    });
+
+    it('answers nothing for a volume no mutation has touched', async () => {
+      await expect(sut.getVolume(`never-${Math.random()}`)).resolves.toBeUndefined();
+    });
+
+    it('counts only its own volume entries', async () => {
+      const mine = await newVolume(await newOwner(), `mine-${Math.random()}`);
+      const yours = await newVolume(await newOwner(), `yours-${Math.random()}`);
+      await sut.upsertEntry(entry(mine, '/a.txt'));
+      await sut.upsertEntry(entry(mine, '/b.txt'));
+      await sut.upsertEntry(entry(yours, '/a.txt'));
+
+      await expect(sut.countEntries(mine)).resolves.toBe(2);
+      await expect(sut.countEntries(yours)).resolves.toBe(1);
+    });
+
+    it('returns the direct children of a folder in name order, and nothing deeper', async () => {
+      const volumeId = await newVolume(await newOwner(), `v-${Math.random()}`);
+      for (const entryPath of ['/documents', '/documents/b.txt', '/documents/a.txt', '/documents/2026/deep.txt']) {
+        await sut.upsertEntry(entry(volumeId, entryPath));
+      }
+
+      const children = await sut.getChildren(volumeId, '/documents');
+
+      expect(children.map((child) => child.name)).toEqual(['a.txt', 'b.txt']);
+      expect(children[0]).toMatchObject({ path: '/documents/a.txt', size: 8, state: DriveEntryState.Present });
+    });
+
+    it('moves one row to a state without touching its siblings', async () => {
+      const volumeId = await newVolume(await newOwner(), `v-${Math.random()}`);
+      await sut.upsertEntry(entry(volumeId, '/a.txt'));
+      await sut.upsertEntry(entry(volumeId, '/b.txt'));
+
+      await sut.setEntryState(volumeId, '/a.txt', DriveEntryState.Conflicted);
+
+      const children = await sut.getChildren(volumeId, '/');
+      expect(children).toEqual([
+        expect.objectContaining({ name: 'a.txt', state: DriveEntryState.Conflicted }),
+        expect.objectContaining({ name: 'b.txt', state: DriveEntryState.Present }),
+      ]);
+    });
+
+    it('marks a subtree missing and reports how many rows that was', async () => {
+      const volumeId = await newVolume(await newOwner(), `v-${Math.random()}`);
+      for (const entryPath of ['/documents', '/documents/a.txt', '/documents/2026/q3.txt', '/documents2', '/other']) {
+        await sut.upsertEntry(entry(volumeId, entryPath));
+      }
+
+      await expect(sut.markSubtreeMissing(volumeId, '/documents')).resolves.toBe(3);
+
+      const states = await db
+        .selectFrom('drive_entry')
+        .select(['path', 'state'])
+        .where('volumeId', '=', volumeId)
+        .execute();
+
+      // Compared as a mapping rather than a list: PostgreSQL orders text by collation, not by bytes, and
+      // the database's collation ignores punctuation at the first level — so `/documents2` sorts before
+      // `/documents/a.txt` here even though `/` is below `2` in ASCII. Asserting an order would be
+      // asserting the collation of whichever database ran the test.
+      expect(Object.fromEntries(states.map((row) => [row.path, row.state]))).toEqual({
+        '/documents': DriveEntryState.Missing,
+        '/documents/2026/q3.txt': DriveEntryState.Missing,
+        '/documents/a.txt': DriveEntryState.Missing,
+        // A sibling whose name merely starts the same way is not part of the subtree.
+        '/documents2': DriveEntryState.Present,
+        '/other': DriveEntryState.Present,
+      });
+    });
+
+    it('marks nothing when the row is not there', async () => {
+      const volumeId = await newVolume(await newOwner(), `v-${Math.random()}`);
+
+      await expect(sut.markSubtreeMissing(volumeId, '/never-indexed')).resolves.toBe(0);
+    });
+
+    it('stores and clears a checkpoint', async () => {
+      const ownerId = await newOwner();
+      const key = `${ownerId}:private`;
+      const volumeId = await newVolume(ownerId, key);
+
+      await sut.setCheckpoint(volumeId, '/documents/2026');
+      await expect(sut.getVolume(key).then((row) => row?.checkpoint)).resolves.toBe('/documents/2026');
+
+      await sut.setCheckpoint(volumeId, null);
+      await expect(sut.getVolume(key).then((row) => row?.checkpoint)).resolves.toBeNull();
+    });
+
+    it('moves scannedAt only when a pass actually completed', async () => {
+      const ownerId = await newOwner();
+      const key = `${ownerId}:private`;
+      const volumeId = await newVolume(ownerId, key);
+      await sut.setCheckpoint(volumeId, '/documents');
+
+      await sut.recordPass(volumeId, { state: DriveVolumeState.Unhealthy, completed: false });
+
+      const interrupted = await sut.getVolume(key);
+      expect(interrupted).toMatchObject({ state: DriveVolumeState.Unhealthy, scannedAt: null });
+      // The pending work is still pending, so the checkpoint survives a refusal.
+      expect(interrupted?.checkpoint).toBe('/documents');
+
+      await sut.recordPass(volumeId, { state: DriveVolumeState.Healthy, completed: true });
+
+      const finished = await sut.getVolume(key);
+      expect(finished).toMatchObject({ state: DriveVolumeState.Healthy, checkpoint: null });
+      expect(finished?.scannedAt).toBeInstanceOf(Date);
     });
   });
 

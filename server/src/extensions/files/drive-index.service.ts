@@ -3,7 +3,7 @@ import path from 'node:path/posix';
 import { DriveEntryRecord, DriveIndexRepository } from 'src/extensions/files/drive-index.repository';
 import { FileEntry } from 'src/extensions/files/file-entry';
 import { Volume, VolumeKind, volumeKey } from 'src/extensions/files/volume';
-import { readVolumeIdentity } from 'src/extensions/files/volume-identity';
+import { ensureVolumeIdentity } from 'src/extensions/files/volume-identity';
 import { LoggingRepository } from 'src/repositories/logging.repository';
 
 /**
@@ -41,6 +41,34 @@ export class DriveIndexService {
     private readonly logger: LoggingRepository,
   ) {
     this.logger.setContext(DriveIndexService.name);
+  }
+
+  /**
+   * Resolves the volume's row, recording the volume and initialising its marker if this is the first
+   * time the server has seen it.
+   *
+   * The one method here that **throws**. An operator-triggered reconciliation pass has to know it could
+   * not record the volume — continuing would mean walking a tree with nowhere to put what it finds —
+   * whereas an ordinary mutation must not fail for that reason. The difference in contract is the point,
+   * so it is stated rather than left to whoever reads the call site.
+   *
+   * It also deliberately **ignores the cache and re-records the volume**, replacing whatever was
+   * remembered. A pass is the operation that runs right after someone dropped and re-created the Drive
+   * tables, so the remembered row id is exactly the thing most likely to be stale — and inserting
+   * against a row that no longer exists fails on the foreign key, in the middle of a walk, having
+   * already reported nothing wrong. One extra statement per pass buys that away.
+   */
+  async ensureVolumeRow(ownerId: string, volume: Volume): Promise<string> {
+    const key = volumeKey(ownerId, volume);
+    const pending = this.recordVolume(key, ownerId, volume);
+    this.volumeRows.set(key, pending);
+
+    try {
+      return await pending;
+    } catch (error) {
+      this.volumeRows.delete(key);
+      throw error;
+    }
   }
 
   /** Records an entry that was created, written, copied, or restored. */
@@ -127,7 +155,7 @@ export class DriveIndexService {
   }
 
   private async recordVolume(key: string, ownerId: string, volume: Volume): Promise<string> {
-    const identity = await readVolumeIdentity(volume.rootPath);
+    const identity = await ensureVolumeIdentity(volume.rootPath);
 
     return this.repository.upsertVolume({
       key,

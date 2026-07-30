@@ -1,6 +1,8 @@
 import { createZodDto } from 'nestjs-zod';
 import { FileEntryType } from 'src/extensions/files/file-entry';
+import { DriveVolumeState } from 'src/extensions/files/index-state';
 import { VolumeAccess, VolumeKind } from 'src/extensions/files/volume';
+import { VolumeHealthReason } from 'src/extensions/files/volume-health';
 import { isoDatetimeToDate } from 'src/validation';
 import z from 'zod';
 
@@ -23,6 +25,81 @@ const VolumeSchema = z
   .meta({ id: 'FileVolumeResponseDto' });
 
 export class FileVolumeResponseDto extends createZodDto(VolumeSchema) {}
+
+const VolumeStateSchema = z.enum(DriveVolumeState).describe('Volume index state').meta({ id: 'FileVolumeState' });
+const VolumeHealthReasonSchema = z
+  .enum(VolumeHealthReason)
+  .describe('Why a volume is not usable as a basis for conclusions')
+  .meta({ id: 'FileVolumeHealthReason' });
+
+/**
+ * What the server can currently prove about one volume.
+ *
+ * `resumeFrom` is a virtual path and never a host path. It is reported because an operator watching a
+ * large volume being reconciled across several passes has no other way to see progress.
+ */
+const VolumeHealthSchema = z
+  .object({
+    volumeId: z.string().describe('Volume the report is about'),
+    state: VolumeStateSchema,
+    reason: VolumeHealthReasonSchema.nullable().describe('Reason the volume is unhealthy or unverified'),
+    indexedEntries: z.number().int().describe('Entries the index currently holds for this volume'),
+    scannedAt: isoDatetimeToDate.nullable().describe('When a pass last completed'),
+    resumeFrom: z.string().nullable().describe('Virtual path an interrupted pass will resume from'),
+  })
+  .meta({ id: 'FileVolumeHealthResponseDto' });
+
+const ReconcileSchema = z
+  .object({
+    volumeId: z.string().describe('Volume to reconcile'),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Maximum directories to reconcile before saving a checkpoint and returning'),
+  })
+  .meta({ id: 'FileReconcileDto' });
+
+const TrashReportSchema = z
+  .object({
+    records: z.number().int().describe('Records the trash holds'),
+    damaged: z.number().int().describe('Records whose manifest could not be read'),
+    orphanedManifests: z.number().int().describe('Manifests whose content is missing'),
+    foreign: z.number().int().describe('Entries in the trash that are not records and are left alone'),
+    expired: z.number().int().describe('Records removed because they exceeded the configured retention'),
+  })
+  .meta({ id: 'FileTrashReportDto' });
+
+/**
+ * What a pass did.
+ *
+ * `added`, `conflicted`, `missing` and `recovered` are counts of index changes, never of file changes:
+ * reconciliation does not modify the tree. `completed` is false when the pass stopped at its limit, and
+ * `stoppedAt` is then where the next one resumes.
+ */
+const ReconcileResultSchema = z
+  .object({
+    volumeId: z.string().describe('Volume the pass ran on'),
+    state: VolumeStateSchema,
+    reason: VolumeHealthReasonSchema.nullable().describe('Reason the pass refused to draw conclusions'),
+    completed: z.boolean().describe('Whether the pass reached the end of the tree'),
+    directories: z.number().int().describe('Directories reconciled by this pass'),
+    added: z.number().int().describe('Entries this pass discovered on disk and added to the index'),
+    conflicted: z
+      .number()
+      .int()
+      .describe('Entries this pass newly found disagreeing with the index; the rows are left untouched'),
+    missing: z
+      .number()
+      .int()
+      .describe('Index rows this pass newly marked missing because their file is gone; nothing is removed'),
+    recovered: z.number().int().describe('Rows this pass returned to present because the filesystem agreed again'),
+    resumedFrom: z.string().nullable().describe('Checkpoint this pass resumed from'),
+    stoppedAt: z.string().nullable().describe('Checkpoint saved for the next pass'),
+    trash: TrashReportSchema.nullable().describe('Trash findings, present only when the pass completed'),
+  })
+  .meta({ id: 'FileReconcileResponseDto' });
 
 const FileEntryTypeSchema = z.enum(FileEntryType).describe('File entry type').meta({ id: 'FileEntryType' });
 
@@ -176,3 +253,6 @@ export class FileTrashRestoreDto extends createZodDto(TrashRestoreSchema) {}
 export class FileTrashPurgeDto extends createZodDto(TrashPurgeSchema) {}
 export class FileTrashEmptyDto extends createZodDto(TrashEmptySchema) {}
 export class FileTrashPurgeResponseDto extends createZodDto(TrashPurgeResultSchema) {}
+export class FileVolumeHealthResponseDto extends createZodDto(VolumeHealthSchema) {}
+export class FileReconcileDto extends createZodDto(ReconcileSchema) {}
+export class FileReconcileResponseDto extends createZodDto(ReconcileResultSchema) {}

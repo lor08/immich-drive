@@ -112,8 +112,14 @@ String parameterToString(dynamic value) {
   if (value is FileVolumeAccess) {
     return FileVolumeAccessTypeTransformer().encode(value).toString();
   }
+  if (value is FileVolumeHealthReason) {
+    return FileVolumeHealthReasonTypeTransformer().encode(value).toString();
+  }
   if (value is FileVolumeKind) {
     return FileVolumeKindTypeTransformer().encode(value).toString();
+  }
+  if (value is FileVolumeState) {
+    return FileVolumeStateTypeTransformer().encode(value).toString();
   }
   if (value is HlsVideoResolution) {
     return HlsVideoResolutionTypeTransformer().encode(value).toString();
