@@ -59,7 +59,7 @@ server/src/extensions/files/files.module.ts        exports the four providers th
 server/src/enum.ts                                 UPSTREAM: two JobNames, one DatabaseLock
 server/src/types.ts                                UPSTREAM: JobItem entries, IDriveReconcileJob
 server/src/services/index.ts                       UPSTREAM: registers the handler
-server/src/app.module.ts                           UPSTREAM: driveModule in MicroservicesModule
+server/src/app.module.ts                           UPSTREAM: driveModule in the microservices and CLI modules
 ```
 
 No DTO, controller or specification changes, so neither generated client moves. All four upstream files are recorded in `docs/architecture/integration-seams.md`.
