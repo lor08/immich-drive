@@ -11,7 +11,7 @@ This versioned file is the source of truth for stable scope and acceptance crite
 
 ## Status
 
-Implementation in review.
+Done. Delivered by PR #58.
 
 ## Goal
 
