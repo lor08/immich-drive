@@ -5,8 +5,8 @@ import { DriveConfig } from 'src/extensions/files/files.config';
 import { DriveVolumeState } from 'src/extensions/files/index-state';
 import { ReconciliationService } from 'src/extensions/files/reconciliation.service';
 import { PRIVATE_VOLUME_ID, VolumeAccess, VolumeKind } from 'src/extensions/files/volume';
+import { VolumeAccessService } from 'src/extensions/files/volume-access.service';
 import { ReconcileReport } from 'src/extensions/files/volume-health';
-import { VolumeRegistry } from 'src/extensions/files/volume.registry';
 import { CronRepository } from 'src/repositories/cron.repository';
 import { DatabaseRepository } from 'src/repositories/database.repository';
 import { JobRepository } from 'src/repositories/job.repository';
@@ -47,8 +47,8 @@ type DriveSettings = Omit<Extract<DriveConfig, { enabled: true }>, 'enabled'>;
 
 const setup = (config: Partial<DriveSettings> & { enabled?: boolean } = {}) => {
   const { enabled = true, ...rest } = config;
-  const registry = {
-    describeVolumes: vi.fn().mockImplementation(() => [volume(PRIVATE_VOLUME_ID)]),
+  const access = {
+    describeAllForSystem: vi.fn().mockImplementation(() => [volume(PRIVATE_VOLUME_ID)]),
   };
   const reconciliation = { reconcileVolume: vi.fn().mockResolvedValue(report()) };
   const users = { getList: vi.fn().mockResolvedValue([{ id: OWNER }]) };
@@ -59,7 +59,7 @@ const setup = (config: Partial<DriveSettings> & { enabled?: boolean } = {}) => {
 
   const sut = new DriveJobService(
     enabled ? { enabled: true, root: '/data', ...rest } : { enabled: false },
-    registry as unknown as VolumeRegistry,
+    access as unknown as VolumeAccessService,
     reconciliation as unknown as ReconciliationService,
     users as unknown as UserRepository,
     jobs as unknown as JobRepository,
@@ -68,7 +68,7 @@ const setup = (config: Partial<DriveSettings> & { enabled?: boolean } = {}) => {
     logger as unknown as LoggingRepository,
   );
 
-  return { sut, registry, reconciliation, users, jobs, crons, database, logger };
+  return { sut, access, reconciliation, users, jobs, crons, database, logger };
 };
 
 describe(DriveJobService.name, () => {
@@ -138,9 +138,9 @@ describe(DriveJobService.name, () => {
 
     /** The shared volume belongs to the deployment, so reconciling it once per user is the same work twice. */
     it('queues the shared volume exactly once, however many people can see it', async () => {
-      const { sut, users, registry, jobs } = setup({ sharedSpace: 'family' });
+      const { sut, users, access, jobs } = setup({ sharedSpace: 'family' });
       users.getList.mockResolvedValue([{ id: OWNER }, { id: OTHER_OWNER }]);
-      registry.describeVolumes.mockImplementation(() => [volume(PRIVATE_VOLUME_ID), volume('shared:family')]);
+      access.describeAllForSystem.mockImplementation(() => [volume(PRIVATE_VOLUME_ID), volume('shared:family')]);
 
       await sut.handleQueueAllVolumes();
 

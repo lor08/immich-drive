@@ -34,7 +34,7 @@ Membership cannot be reconstructed from the filesystem — nothing on disk says 
 
 **One decision point, and storage is reachable only through it.** `VolumeAccessService` answers "may this caller do this to this volume?", and `FileDomainService` **no longer holds the volume registry at all** — an adapter comes only from a resolved access decision. Forgetting a check now requires adding a dependency rather than omitting a line.
 
-**Three kinds of caller.** The owner of a private volume, whose right is derived from the path; a member of a shared volume, read-only or read-write; and system work — reconciliation and scheduled passes — which acts for the deployment and needs no membership row. The third is a named method, `forSystem`, so that it reads as a decision rather than as a missing check. Reconciliation was moved onto it in this task, which is what keeps "storage comes from one place" literally true.
+**Three kinds of caller.** The owner of a private volume, whose right is derived from the path; a member of a shared volume, read-only or read-write; and system work — reconciliation and scheduled passes — which acts for the deployment and needs no membership row. The third is a named method, `forSystem`, so that it reads as a decision rather than as a missing check. Reconciliation and the scheduled job were both moved onto it, which is what keeps "storage comes from one place" literally true rather than nearly true: after this task nothing outside the access service holds the volume registry.
 
 **A non-member is told the volume does not exist**, exactly as an unknown identifier is, and it is left out of `GET /files/volumes` entirely. A household space should not be discoverable by people outside it. **A read-only member is told plainly they may not write** — `403`, not `404`, because pretending a volume they can list has vanished is the worse answer.
 
@@ -52,6 +52,7 @@ server/src/extensions/files/volume-access.service.ts              the single dec
 server/src/extensions/files/volume-membership.service.ts          administration
 server/src/extensions/files/file-domain.service.ts                every entry point, each naming its need
 server/src/extensions/files/reconciliation.service.ts             system work, said out loud
+server/src/extensions/files/drive-job.service.ts                  the scheduled pass, likewise
 server/src/extensions/files/volume.ts                             the read-only refusal code
 server/src/extensions/files/files.exceptions.ts                   403 for that refusal
 server/src/extensions/files/files.dto.ts, files.controller.ts     three admin endpoints

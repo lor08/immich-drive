@@ -89,7 +89,7 @@ export class FilesModule implements OnApplicationBootstrap {
       ],
       // `DriveJobService` lives in the upstream service scope but needs all four of these; a provider is
       // only visible outside its module if the module exports it.
-      exports: [DRIVE_CONFIG, FileDomainService, ReconciliationService, VolumeRegistry],
+      exports: [DRIVE_CONFIG, FileDomainService, ReconciliationService, VolumeAccessService],
     };
   }
 
